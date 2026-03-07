@@ -1,0 +1,18 @@
+CREATE DATABASE IF NOT EXISTS train_tracker;
+USE train_tracker;
+
+CREATE TABLE IF NOT EXISTS trains (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    train_id VARCHAR(50) NOT NULL UNIQUE,
+    line VARCHAR(100) NOT NULL DEFAULT 'Banlieue Sud'
+);
+
+CREATE TABLE IF NOT EXISTS positions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    train_id VARCHAR(50) NOT NULL,
+    latitude DECIMAL(10, 8) NOT NULL,
+    longitude DECIMAL(11, 8) NOT NULL,
+    speed INT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (train_id) REFERENCES trains(train_id) ON DELETE CASCADE
+);

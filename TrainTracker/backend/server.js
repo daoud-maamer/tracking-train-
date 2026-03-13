@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const trainRoutes = require('./routes/trainRoutes');
 const lostItemsRoutes = require('./routes/lostItemsRoutes');
+const authRoutes = require('./routes/authRoutes');
 const gpsService = require('./services/gpsService');
 const { deleteExpiredItems } = require('./controllers/lostItemsController');
 
@@ -19,6 +20,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Routes
 app.use('/api', trainRoutes);
 app.use('/api/lost-items', lostItemsRoutes);
+app.use('/api/auth', authRoutes);
 
 // Base route
 app.get('/', (req, res) => {

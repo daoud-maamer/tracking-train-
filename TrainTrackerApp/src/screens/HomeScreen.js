@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Modal } from 'react-native';
+import { AuthContext } from '../context/AuthContext';
 
 const HomeScreen = ({ navigation }) => {
     const [menuVisible, setMenuVisible] = useState(false);
+    const { user, logoutUser } = useContext(AuthContext);
 
     return (
         <View style={styles.container}>
@@ -76,6 +78,30 @@ const HomeScreen = ({ navigation }) => {
                             >
                                 <Text style={styles.menuItemText}>learn more about us</Text>
                             </TouchableOpacity>
+
+                            {user && user.role === 'admin' && (
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        setMenuVisible(false);
+                                        navigation.navigate('AdminDashboard');
+                                    }}
+                                >
+                                    <Text style={[styles.menuItemText, { color: '#16A34A', fontWeight: 'bold' }]}>Admin Dashboard</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {user && (
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        setMenuVisible(false);
+                                        logoutUser();
+                                    }}
+                                >
+                                    <Text style={[styles.menuItemText, { color: '#DC2626' }]}>Se Déconnecter</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     </View>
                 </View>

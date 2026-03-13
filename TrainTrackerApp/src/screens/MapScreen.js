@@ -14,13 +14,24 @@ Notifications.setNotificationHandler({
 });
 
 const STATIONS = [
-    { name: 'Tunis Ville', latitude: 36.7953, longitude: 10.1806, id: 0 },
-    { name: 'Mégrine', latitude: 36.7686, longitude: 10.2336, id: 1 },
-    { name: 'Radès', latitude: 36.7667, longitude: 10.2833, id: 2 },
-    { name: 'Ezzahra', latitude: 36.7439, longitude: 10.3083, id: 3 },
-    { name: 'Hammam Lif', latitude: 36.7287, longitude: 10.3416, id: 4 },
-    { name: 'Hammam Chott', latitude: 36.7217, longitude: 10.3583, id: 5 },
-    { name: 'Borj Cédria', latitude: 36.6881, longitude: 10.3779, id: 6 },
+    { name: 'Gare de Tunis', latitude: 36.7953, longitude: 10.1806, id: 0, distanceKm: 0 },
+    { name: 'Djebel Jelloud', latitude: 36.7820, longitude: 10.1950, id: 1, distanceKm: 2.1 },
+    { name: 'Mégrine Riadh', latitude: 36.7720, longitude: 10.2200, id: 2, distanceKm: 3.9 },
+    { name: 'Mégrine', latitude: 36.7686, longitude: 10.2336, id: 3, distanceKm: 6.0 },
+    { name: 'Sidi Rezig', latitude: 36.7650, longitude: 10.2500, id: 4, distanceKm: 8.1 },
+    { name: 'Radès Lycée', latitude: 36.7660, longitude: 10.2650, id: 5, distanceKm: 9.9 }, 
+    { name: 'Radès', latitude: 36.7667, longitude: 10.2833, id: 6, distanceKm: 11.4 },
+    { name: 'Radès Méliane', latitude: 36.7620, longitude: 10.2700, id: 7, distanceKm: 13.4 },
+    { name: 'Ezzahra', latitude: 36.7439, longitude: 10.3083, id: 8, distanceKm: 14.7 },
+    { name: 'Ezzahra Lycée', latitude: 36.7400, longitude: 10.3200, id: 9, distanceKm: 15.8 },
+    { name: 'Boukornine', latitude: 36.7320, longitude: 10.3300, id: 10, distanceKm: 17.2 },
+    { name: 'Hammam Lif', latitude: 36.7287, longitude: 10.3416, id: 11, distanceKm: 18.5 },
+    { name: 'Arrêt du Stade', latitude: 36.7265, longitude: 10.3450, id: 12, distanceKm: 19.7 }, 
+    { name: 'Tahar Sfar', latitude: 36.7250, longitude: 10.3500, id: 13, distanceKm: 21.1 },
+    { name: 'Hammam Chott', latitude: 36.7217, longitude: 10.3583, id: 14, distanceKm: 22.1 },
+    { name: 'Bir El Bey', latitude: 36.6980, longitude: 10.3725, id: 15, distanceKm: 23.05 },
+    { name: 'Borj Cédria', latitude: 36.6881, longitude: 10.3779, id: 16, distanceKm: 24.0 }, 
+    { name: 'Erriadh Station', latitude: 36.6882, longitude: 10.3779, id: 17, distanceKm: 25.35 },
 ];
 
 const STATION_HEIGHT = 100;
@@ -28,7 +39,8 @@ const STATION_HEIGHT = 100;
 const MapScreen = () => {
     const [trains, setTrains] = React.useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedStation, setSelectedStation] = useState(null);
+    const [selectedStation, setSelectedStation] = useState(null); // Departure
+    const [selectedArrival, setSelectedArrival] = useState(null); // Arrival
     const [notifiedTrains, setNotifiedTrains] = useState(new Set());
 
     // Store previous positions to calculate direction
@@ -45,6 +57,19 @@ const MapScreen = () => {
         return R * c;
     };
 
+    // New feature: Exact transit time between chosen stations
+    const calculateTravelTime = (startStation, endStation) => {
+        if (!startStation || !endStation || startStation.id === endStation.id) return 0;
+        
+        // Distance is the exact difference between their distance from Tunis
+        const distanceKm = Math.abs(startStation.distanceKm - endStation.distanceKm);
+        const stationsCount = Math.abs(startStation.id - endStation.id);
+        const movingTimeMinutes = (distanceKm / 45) * 60;
+        const stopsMinutes = Math.max(0, stationsCount - 1); // intermediate stops
+        
+        return Math.round(movingTimeMinutes + stopsMinutes);
+    };
+
     const getETA = (trainLat, trainLon, stationLat, stationLon) => {
         const distance = calculateDistance(trainLat, trainLon, stationLat, stationLon);
         const averageSpeed = 45;
@@ -54,11 +79,12 @@ const MapScreen = () => {
 
     // Calculate vertical position of a train on the schematic line
     const getTrainPosition = (trainLat, trainLong) => {
-        // Simple linear interpolation based on latitude (North to South)
-        const startLat = STATIONS[0].latitude;
-        const endLat = STATIONS[STATIONS.length - 1].latitude;
+        // Tunis Ville is Northernmost (Highest Lat: ~36.79), Erriadh is Southernmost (Lowest Lat: ~36.68)
+        // With Tunis Ville at index 0 (top of screen), position Progress should be 0 at Tunis, 1 at Erriadh
+        const startLat = STATIONS[0].latitude; // Tunis Ville (North)
+        const endLat = STATIONS[STATIONS.length - 1].latitude; // Erriadh (South)
 
-        // Normalize position between 0 and 1
+        // As trainLat decreases (moves South), progress increases from 0 to 1
         let progress = (startLat - trainLat) / (startLat - endLat);
         progress = Math.max(0, Math.min(1, progress));
 
@@ -69,13 +95,15 @@ const MapScreen = () => {
     const loadTrains = useCallback(async () => {
         try {
             const data = await fetchTrains();
-            const enhancedData = data.map(train => {
+            const singleTrainData = data.slice(0, 1); // Requirement: test with exactly 1 train
+            
+            const enhancedData = singleTrainData.map(train => {
                 const prev = prevTrainsRef.current[train.train_id];
                 let direction = null; // null represents no change or unknown yet
 
                 if (prev) {
                     if (parseFloat(train.latitude) < prev.latitude) {
-                        direction = 'down'; // Moving towards Borj Cédria (South)
+                        direction = 'down'; // Moving towards Erriadh (South)
                     } else if (parseFloat(train.latitude) > prev.latitude) {
                         direction = 'up'; // Moving towards Tunis Ville (North)
                     } else {
@@ -115,40 +143,84 @@ const MapScreen = () => {
     }, [loadTrains]);
 
     useEffect(() => {
-        if (!selectedStation || trains.length === 0) return;
+        if (!selectedArrival || trains.length === 0) return;
 
         let newNotifiedTrains = new Set(notifiedTrains);
         let updated = false;
 
-        trains.forEach(train => {
-            const eta = getETA(parseFloat(train.latitude), parseFloat(train.longitude), selectedStation.latitude, selectedStation.longitude);
-            const trainKey = `${train.train_id}-${selectedStation.id}`;
+        // Determine direction required again locally for the effect or use the trains array directly
+        let localRequiredDirection = null;
+        if (selectedStation && selectedArrival && selectedStation.id !== selectedArrival.id) {
+            localRequiredDirection = selectedStation.id < selectedArrival.id ? 'down' : 'up';
+        }
 
-            if (eta <= 1 && !notifiedTrains.has(trainKey)) {
+        const validTrains = trains.filter(t => t.direction === null || t.direction === localRequiredDirection);
+
+        validTrains.forEach(train => {
+            // Check ETA to Departure Station
+            const etaToDeparture = getETA(parseFloat(train.latitude), parseFloat(train.longitude), selectedStation.latitude, selectedStation.longitude);
+            const depKey = `dep-${train.train_id}-${selectedStation.id}`;
+
+            if (etaToDeparture <= 1 && !notifiedTrains.has(depKey)) {
                 Notifications.scheduleNotificationAsync({
                     content: {
                         title: "Train à l'approche ! 🚆",
-                        body: `Le train #${train.train_id} arrive à ${selectedStation.name} dans environ 1 minute.`,
+                        body: `Le train #${train.train_id} arrive à votre gare de départ dans environ 1 minute.`,
                         sound: true,
                     },
                     trigger: null,
                 });
 
-                // Fallback for Expo Go since expo-notifications throws warnings there
                 Alert.alert(
                     "Train à l'approche ! 🚆",
-                    `Le train #${train.train_id} arrive à ${selectedStation.name} dans environ 1 minute.`
+                    `Le train #${train.train_id} arrive à votre gare de départ dans environ 1 minute.`
                 );
 
-                newNotifiedTrains.add(trainKey);
+                newNotifiedTrains.add(depKey);
                 updated = true;
+            }
+
+            // Check ETA to Arrival Station
+            // Logic Change: Only check Arrival ETA if the train has already passed the Departure station
+            // or is currently between Departure and Arrival.
+            let hasPassedDeparture = false;
+            if (localRequiredDirection === 'down') {
+                // Moving south. Passed if train latitude is less than departure latitude (further south)
+                hasPassedDeparture = parseFloat(train.latitude) < selectedStation.latitude;
+            } else if (localRequiredDirection === 'up') {
+                // Moving north. Passed if train latitude is greater than departure latitude (further north)
+                hasPassedDeparture = parseFloat(train.latitude) > selectedStation.latitude;
+            }
+
+            if (hasPassedDeparture) {
+                const etaToArrival = getETA(parseFloat(train.latitude), parseFloat(train.longitude), selectedArrival.latitude, selectedArrival.longitude);
+                const arrKey = `arr-${train.train_id}-${selectedArrival.id}`;
+
+                if (etaToArrival <= 1 && !notifiedTrains.has(arrKey)) {
+                    Notifications.scheduleNotificationAsync({
+                        content: {
+                            title: "Destination proche ! 🚆",
+                            body: `Vous avez 1 minute pour arriver à votre destination.`,
+                            sound: true,
+                        },
+                        trigger: null,
+                    });
+
+                    Alert.alert(
+                        "Destination proche ! 🚆",
+                        `Vous avez 1 minute pour arriver à votre destination.`
+                    );
+
+                    newNotifiedTrains.add(arrKey);
+                    updated = true;
+                }
             }
         });
 
         if (updated) {
             setNotifiedTrains(newNotifiedTrains);
         }
-    }, [trains, selectedStation, notifiedTrains]);
+    }, [trains, selectedArrival, selectedStation, notifiedTrains]);
 
     if (loading && trains.length === 0) {
         return (
@@ -159,37 +231,158 @@ const MapScreen = () => {
         );
     }
 
-    const nextTrainETA = selectedStation && trains.length > 0
-        ? Math.min(...trains.map(t => getETA(parseFloat(t.latitude), parseFloat(t.longitude), selectedStation.latitude, selectedStation.longitude)))
-        : null;
+    // Determine the required direction to travel
+    let requiredDirection = null;
+    if (selectedStation && selectedArrival && selectedStation.id !== selectedArrival.id) {
+        // Tunis Ville is id: 0, Erriadh is id: 15
+        // If Departure < Arrival, we are moving South (down)
+        // If Departure > Arrival, we are moving North (up)
+        requiredDirection = selectedStation.id < selectedArrival.id ? 'down' : 'up';
+    }
+
+    // Filter trains to only show those heading in the correct direction,
+    // or those whose direction is not yet known (null).
+    const filteredTrains = trains.filter(train => {
+        if (!selectedStation || !selectedArrival) return true; // Show all if no route selected
+        if (train.direction === null) return true; // Keep stationary/newly-spawned trains
+        return train.direction === requiredDirection;
+    });
+
+    // Calculate ETA specifically for the first filtered train
+    let nextTrainETA = null;
+    let hasTrainPassedDeparture = false;
+    let dynamicDistanceKm = 0;
+    let dynamicTravelTime = 0;
+
+    if (selectedStation && selectedArrival) {
+        // Base values (before boarding)
+        dynamicDistanceKm = Math.abs(selectedStation.distanceKm - selectedArrival.distanceKm);
+        dynamicTravelTime = calculateTravelTime(selectedStation, selectedArrival);
+
+        if (filteredTrains.length > 0) {
+            const activeTrain = filteredTrains[0];
+            nextTrainETA = getETA(parseFloat(activeTrain.latitude), parseFloat(activeTrain.longitude), selectedStation.latitude, selectedStation.longitude);
+            
+            // Check if train is visually past the departure point
+            if (requiredDirection === 'down') {
+                hasTrainPassedDeparture = parseFloat(activeTrain.latitude) < selectedStation.latitude;
+            } else if (requiredDirection === 'up') {
+                hasTrainPassedDeparture = parseFloat(activeTrain.latitude) > selectedStation.latitude;
+            }
+
+            // If the train has boarded, update distance and ETA relative to the *train's live location*
+            if (hasTrainPassedDeparture) {
+                // Find total starting distance
+                const totalJourneyDistance = Math.abs(selectedStation.distanceKm - selectedArrival.distanceKm);
+
+                // Find how far the train has physically traveled away from the departure station
+                const distanceTraveledSoFar = calculateDistance(
+                    selectedStation.latitude,
+                    selectedStation.longitude,
+                    parseFloat(activeTrain.latitude),
+                    parseFloat(activeTrain.longitude)
+                );
+
+                // Remaining rail distance is total minus what we've driven so far
+                dynamicDistanceKm = Math.max(0, totalJourneyDistance - distanceTraveledSoFar);
+                
+                if (dynamicDistanceKm > 0.1) {
+                    // Figure out exactly how many stations are left to calculate stops
+                    // Train has covered `distanceTraveledSoFar` km.
+                    // We can estimate how many stops it has passed by looking at the remaining stations.
+                    let remainingStopsCount = 0;
+                    
+                    const startIdx = Math.min(selectedStation.id, selectedArrival.id);
+                    const endIdx = Math.max(selectedStation.id, selectedArrival.id);
+                    
+                    // The distance metric from Tunis to compare against
+                    const currentTrainDistanceMarker = requiredDirection === 'down' 
+                        ? selectedStation.distanceKm + distanceTraveledSoFar 
+                        : selectedStation.distanceKm - distanceTraveledSoFar;
+
+                    for (let i = startIdx; i <= endIdx; i++) {
+                        const stMarker = STATIONS[i].distanceKm;
+                        if (requiredDirection === 'down') {
+                            if (stMarker > currentTrainDistanceMarker && stMarker < selectedArrival.distanceKm) {
+                                remainingStopsCount++;
+                            }
+                        } else {
+                            if (stMarker < currentTrainDistanceMarker && stMarker > selectedArrival.distanceKm) {
+                                remainingStopsCount++;
+                            }
+                        }
+                    }
+
+                    const movingTimeMinutes = (dynamicDistanceKm / 45) * 60;
+                    dynamicTravelTime = Math.max(1, Math.round(movingTimeMinutes + remainingStopsCount));
+                } else {
+                    dynamicDistanceKm = 0;
+                    dynamicTravelTime = 0; // Arrived
+                }
+            }
+        }
+    }
 
     return (
         <View style={styles.container}>
             {/* Header / Dashboard */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Ligne Banlieue Sud</Text>
-                <View style={styles.pickerContainer}>
-                    <Text style={styles.pickerLabel}>Gare de destination</Text>
-                    <View style={styles.pickerWrapper}>
-                        <Picker
-                            selectedValue={selectedStation}
-                            onValueChange={(itemValue) => setSelectedStation(itemValue)}
-                            style={styles.picker}
-                        >
-                            <Picker.Item label="Choisir une gare..." value={null} />
-                            {STATIONS.map((station, index) => (
-                                <Picker.Item key={index} label={station.name} value={station} />
-                            ))}
-                        </Picker>
+                <View style={styles.pickersContainerMain}>
+                    <View style={[styles.pickerContainer, { flex: 1, marginRight: 5 }]}>
+                        <Text style={styles.pickerLabel}>Gare de départ</Text>
+                        <View style={styles.pickerWrapper}>
+                            <Picker
+                                selectedValue={selectedStation}
+                                onValueChange={(itemValue) => setSelectedStation(itemValue)}
+                                style={styles.picker}
+                            >
+                                <Picker.Item label="Départ..." value={null} />
+                                {STATIONS.map((station, index) => (
+                                    <Picker.Item key={index} label={station.name} value={station} />
+                                ))}
+                            </Picker>
+                        </View>
+                    </View>
+
+                    <View style={[styles.pickerContainer, { flex: 1, marginLeft: 5 }]}>
+                        <Text style={styles.pickerLabel}>Gare d'arrivée</Text>
+                        <View style={styles.pickerWrapper}>
+                            <Picker
+                                selectedValue={selectedArrival}
+                                onValueChange={(itemValue) => setSelectedArrival(itemValue)}
+                                style={styles.picker}
+                            >
+                                <Picker.Item label="Arrivée..." value={null} />
+                                {STATIONS.map((station, index) => (
+                                    <Picker.Item key={index} label={station.name} value={station} />
+                                ))}
+                            </Picker>
+                        </View>
                     </View>
                 </View>
 
-                {selectedStation && (
+                {selectedStation && selectedArrival && (
                     <View style={styles.etaBanner}>
-                        <Text style={styles.etaMainText}>
-                            {nextTrainETA !== null ? `Prochain train dans ${nextTrainETA} min` : "Aucun train en mouvement"}
-                        </Text>
-                        <Text style={styles.etaSubText}>Vers {selectedStation.name}</Text>
+                        {!hasTrainPassedDeparture ? (
+                            <>
+                                <Text style={styles.etaMainText}>
+                                    {nextTrainETA !== null && nextTrainETA !== Infinity ? `Le train arrive dans ${nextTrainETA} min` : "Aucun train en mouvement"}
+                                </Text>
+                                <Text style={styles.etaSubText}>
+                                    Trajet ({dynamicDistanceKm.toFixed(2)}km) : {dynamicTravelTime} min
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.etaMainText}>
+                                    Reste : {dynamicDistanceKm.toFixed(2)}km ({dynamicTravelTime} min)
+                                </Text>
+                                <Text style={styles.etaSubText}>
+                                    En route vers {selectedArrival.name}
+                                </Text>
+                            </>
+                        )}
                     </View>
                 )}
             </View>
@@ -203,20 +396,28 @@ const MapScreen = () => {
                     {/* Stations */}
                     {STATIONS.map((station, index) => {
                         const isSelected = selectedStation && selectedStation.id === station.id;
+                        const isArrival = selectedArrival && selectedArrival.id === station.id;
+
                         return (
                             <View key={index} style={[styles.stationRow, { top: index * STATION_HEIGHT }]}>
-                                <View style={[styles.stationDot, isSelected && styles.selectedStationDot]}>
-                                    {isSelected && <View style={styles.selectedStationInner} />}
+                                <View style={[styles.stationDot, 
+                                    isSelected && styles.selectedStationDot,
+                                    isArrival && styles.arrivalStationDot
+                                ]}>
+                                    {(isSelected || isArrival) && <View style={styles.selectedStationInner} />}
                                 </View>
-                                <Text style={[styles.stationName, isSelected && styles.selectedStationName]}>
+                                <Text style={[styles.stationName, 
+                                    isSelected && styles.selectedStationName,
+                                    isArrival && styles.arrivalStationName
+                                ]}>
                                     {station.name}
                                 </Text>
                             </View>
                         );
                     })}
 
-                    {/* Moving Trains */}
-                    {trains.map((train, index) => {
+                    {/* Moving Trains (Filtered) */}
+                    {filteredTrains.map((train, index) => {
                         const pos = getTrainPosition(parseFloat(train.latitude), parseFloat(train.longitude));
                         let arrow = '';
                         if (train.direction === 'down') arrow = '⬇️';
@@ -268,8 +469,13 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
-    pickerContainer: {
+    pickersContainerMain: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         marginBottom: 10,
+    },
+    pickerContainer: {
+        // Removed generic bottom margin to rely on parent
     },
     pickerLabel: {
         fontSize: 12,
@@ -342,6 +548,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#F59E0B',
         transform: [{ scale: 1.2 }],
     },
+    arrivalStationDot: {
+        borderColor: '#10B981',
+        backgroundColor: '#10B981',
+        transform: [{ scale: 1.2 }],
+    },
     selectedStationInner: {
         flex: 1,
         backgroundColor: '#FFFFFF',
@@ -356,6 +567,11 @@ const styles = StyleSheet.create({
     },
     selectedStationName: {
         color: '#1E3A8A',
+        fontWeight: '800',
+        fontSize: 18,
+    },
+    arrivalStationName: {
+        color: '#065F46',
         fontWeight: '800',
         fontSize: 18,
     },

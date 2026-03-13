@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { getAllItems, createItem, updateStatus, likeItem } = require('../controllers/lostItemsController');
+const { getAllItems, getPendingItems, createItem, updateStatus, approveRejectItem, likeItem } = require('../controllers/lostItemsController');
+const { authMiddleware, adminMiddleware, optionalAuth } = require('../middleware/auth');
 
 // Configure multer storage for uploaded images
 const storage = multer.diskStorage({
@@ -27,9 +28,16 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 
 // Routes
-router.get('/', getAllItems);
-router.post('/', upload.single('image'), createItem);
-router.patch('/:id/status', updateStatus);
-router.patch('/:id/like', likeItem);
+// Public route to view approved items but optionally get user context
+router.get('/', optionalAuth, getAllItems);
+
+// Protected routes (require login)
+router.post('/', authMiddleware, upload.single('image'), createItem);
+router.patch('/:id/status', authMiddleware, updateStatus);
+router.patch('/:id/like', authMiddleware, likeItem);
+
+// Admin routes
+router.get('/pending', authMiddleware, adminMiddleware, getPendingItems);
+router.patch('/:id/approve', authMiddleware, adminMiddleware, approveRejectItem);
 
 module.exports = router;

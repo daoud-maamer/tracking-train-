@@ -29,6 +29,7 @@ const LostAndFoundScreen = ({ navigation }) => {
     const [filter, setFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedImage, setSelectedImage] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
 
     const [newPost, setNewPost] = useState({
         author: '',
@@ -160,11 +161,10 @@ const LostAndFoundScreen = ({ navigation }) => {
 
     const handleLike = async (id) => {
         try {
-            const { likes } = await likeLostItem(id);
-            setPublications(prev => prev.map(p => p.id === id ? { ...p, likes } : p));
+            const { likes, is_liked } = await likeLostItem(id);
+            setPublications(prev => prev.map(p => p.id === id ? { ...p, likes, is_liked } : p));
         } catch {
-            // optimistic UI fallback
-            setPublications(prev => prev.map(p => p.id === id ? { ...p, likes: p.likes + 1 } : p));
+            Alert.alert('Erreur', 'Impossible d\'effectuer cette action.');
         }
     };
 
@@ -206,7 +206,6 @@ const LostAndFoundScreen = ({ navigation }) => {
             if (filter === 'all') return true;
             if (filter === 'lost') return pub.type === 'lost' && pub.status === 'active';
             if (filter === 'found') return pub.type === 'found' && pub.status === 'active';
-            if (filter === 'resolved') return pub.status === 'resolved';
             return true;
         })
         .filter(pub =>
@@ -217,7 +216,6 @@ const LostAndFoundScreen = ({ navigation }) => {
 
     const totalLost = publications.filter(p => p.type === 'lost' && p.status === 'active').length;
     const totalFound = publications.filter(p => p.type === 'found' && p.status === 'active').length;
-    const totalResolved = publications.filter(p => p.status === 'resolved').length;
 
     return (
         <SafeAreaView style={styles.container}>
@@ -258,7 +256,6 @@ const LostAndFoundScreen = ({ navigation }) => {
                     { key: 'all', label: `Tous (${publications.length})` },
                     { key: 'lost', label: `🔴 Perdus (${totalLost})` },
                     { key: 'found', label: `🟢 Trouvés (${totalFound})` },
-                    { key: 'resolved', label: `✅ Résolus (${totalResolved})` },
                 ].map(f => (
                     <TouchableOpacity
                         key={f.key}
@@ -284,7 +281,7 @@ const LostAndFoundScreen = ({ navigation }) => {
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1E3A8A" />}
                 >
                     {filteredPublications.length > 0 ? filteredPublications.map((pub) => (
-                        <View key={pub.id} style={[styles.card, pub.status === 'resolved' && styles.cardResolved]}>
+                        <View key={pub.id} style={styles.card}>
                             {/* Card Header */}
                             <View style={styles.cardHeader}>
                                 <View style={styles.authorInfo}>
@@ -300,22 +297,23 @@ const LostAndFoundScreen = ({ navigation }) => {
                                 </View>
                                 <View style={[
                                     styles.typeBadge,
-                                    pub.status === 'resolved' ? styles.resolvedBadge :
-                                        pub.type === 'lost' ? styles.lostBadge : styles.foundBadge
+                                    pub.type === 'lost' ? styles.lostBadge : styles.foundBadge
                                 ]}>
                                     <Text style={styles.typeBadgeText}>
-                                        {pub.status === 'resolved' ? '✅ Résolu' : pub.type === 'lost' ? '🔴 Perdu' : '🟢 Trouvé'}
+                                        {pub.type === 'lost' ? '🔴 Perdu' : '🟢 Trouvé'}
                                     </Text>
                                 </View>
                             </View>
 
                             {/* Item Photo */}
                             {pub.image_url && (
-                                <Image
-                                    source={{ uri: `${API_BASE}${pub.image_url}` }}
-                                    style={styles.itemImage}
-                                    resizeMode="cover"
-                                />
+                                <TouchableOpacity onPress={() => setPreviewImage(`${API_BASE}${pub.image_url}`)}>
+                                    <Image
+                                        source={{ uri: `${API_BASE}${pub.image_url}` }}
+                                        style={styles.itemImage}
+                                        resizeMode="cover"
+                                    />
+                                </TouchableOpacity>
                             )}
 
                             {/* Card Content */}
@@ -356,27 +354,6 @@ const LostAndFoundScreen = ({ navigation }) => {
                                 </View>
                             </View>
 
-                            {/* Card Actions */}
-                            <View style={styles.cardActions}>
-                                <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(pub.id)}>
-                                    <Text style={styles.actionIcon}>❤️</Text>
-                                    <Text style={styles.actionText}>{pub.likes}</Text>
-                                </TouchableOpacity>
-
-                                {pub.status !== 'resolved' && (
-                                    <TouchableOpacity style={styles.actionButton} onPress={() => handleResolved(pub.id)}>
-                                        <Text style={styles.actionIcon}>✅</Text>
-                                        <Text style={styles.actionText}>Résolu</Text>
-                                    </TouchableOpacity>
-                                )}
-
-                                <TouchableOpacity
-                                    style={[styles.actionButton, styles.contactButton]}
-                                    onPress={() => handleContact(pub.contact)}
-                                >
-                                    <Text style={styles.contactButtonText}>📞 Contacter</Text>
-                                </TouchableOpacity>
-                            </View>
                         </View>
                     )) : (
                         <View style={styles.emptyState}>
@@ -517,6 +494,32 @@ const LostAndFoundScreen = ({ navigation }) => {
                         </ScrollView>
                     </View>
                 </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Image Preview Modal */}
+            <Modal
+                visible={!!previewImage}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setPreviewImage(null)}
+            >
+                <TouchableOpacity
+                    style={styles.previewContainer}
+                    activeOpacity={1}
+                    onPress={() => setPreviewImage(null)}
+                >
+                    <Image
+                        source={{ uri: previewImage }}
+                        style={styles.previewImage}
+                        resizeMode="contain"
+                    />
+                    <TouchableOpacity
+                        style={styles.closePreviewButton}
+                        onPress={() => setPreviewImage(null)}
+                    >
+                        <Text style={styles.closePreviewText}>✕</Text>
+                    </TouchableOpacity>
+                </TouchableOpacity>
             </Modal>
         </SafeAreaView>
     );
@@ -670,6 +673,33 @@ const styles = StyleSheet.create({
     },
     submitButtonDisabled: { backgroundColor: '#93A5C8' },
     submitButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    // Preview Modal
+    previewContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewImage: {
+        width: '95%',
+        height: '80%',
+    },
+    closePreviewButton: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    closePreviewText: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: 'bold',
+    },
 });
 
 export default LostAndFoundScreen;

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // NOTE: Replace with your machine's IP address if testing on a physical device,
 // OR leave as localhost/10.0.2.2 if testing on Android Emulator
@@ -8,6 +9,35 @@ const api = axios.create({
     baseURL: API_BASE_URL,
     timeout: 10000,
 });
+
+// Add a request interceptor to inject the token
+api.interceptors.request.use(
+    async (config) => {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+// --- Auth routes ---
+export const login = async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+};
+
+export const register = async (email, password) => {
+    const response = await api.post('/auth/register', { email, password });
+    return response.data;
+};
+
+export const verifyEmail = async (email, code) => {
+    const response = await api.post('/auth/verify', { email, code });
+    return response.data;
+};
+
 
 // --- Train routes ---
 export const fetchTrains = async () => {
@@ -63,5 +93,28 @@ export const likeLostItem = async (id) => {
         throw error;
     }
 };
+
+// --- Admin ROUTES ---
+
+export const fetchPendingItems = async () => {
+    try {
+        const response = await api.get('/lost-items/pending');
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching pending items', error);
+        throw error;
+    }
+}
+
+export const approveRejectItem = async (id, status) => {
+    try {
+        const response = await api.patch(`/lost-items/${id}/approve`, { status });
+        return response.data;
+    } catch (error) {
+        console.error('Error approving/rejecting item', error);
+        throw error;
+    }
+}
+
 
 export default api;

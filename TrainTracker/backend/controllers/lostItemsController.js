@@ -22,9 +22,23 @@ const getAllItems = async (req, res) => {
             `SELECT *, 
              DATEDIFF(expires_at, NOW()) AS days_remaining
              FROM lost_items 
-             WHERE expires_at > NOW()
+             WHERE expires_at > NOW() AND status = 'approved'
              ORDER BY created_at DESC`
         );
+
+        if (req.user) {
+            const userId = req.user.id;
+            const [likes] = await pool.query(`SELECT item_id FROM lost_item_likes WHERE user_id = ?`, [userId]);
+            const likedItemIds = new Set(likes.map(l => l.item_id));
+            rows.forEach(row => {
+                row.is_liked = likedItemIds.has(row.id);
+            });
+        } else {
+            rows.forEach(row => {
+                row.is_liked = false;
+            });
+        }
+
         res.json(rows);
     } catch (error) {
         console.error('Error fetching lost items:', error.message);
@@ -84,17 +98,70 @@ const updateStatus = async (req, res) => {
     }
 };
 
-// PATCH /api/lost-items/:id/like - Increment likes
+// PATCH /api/lost-items/:id/like - Increment/Decrement likes
 const likeItem = async (req, res) => {
     try {
         const { id } = req.params;
-        await pool.query('UPDATE lost_items SET likes = likes + 1 WHERE id = ?', [id]);
+        const userId = req.user.id;
+
+        const [existing] = await pool.query('SELECT * FROM lost_item_likes WHERE user_id = ? AND item_id = ?', [userId, id]);
+        
+        let is_liked = false;
+
+        if (existing.length > 0) {
+            // Unlike
+            await pool.query('DELETE FROM lost_item_likes WHERE user_id = ? AND item_id = ?', [userId, id]);
+            await pool.query('UPDATE lost_items SET likes = likes - 1 WHERE id = ?', [id]);
+            is_liked = false;
+        } else {
+            // Like
+            await pool.query('INSERT INTO lost_item_likes (user_id, item_id) VALUES (?, ?)', [userId, id]);
+            await pool.query('UPDATE lost_items SET likes = likes + 1 WHERE id = ?', [id]);
+            is_liked = true;
+        }
+
         const [updated] = await pool.query('SELECT likes FROM lost_items WHERE id = ?', [id]);
-        res.json({ likes: updated[0].likes });
+        res.json({ likes: updated[0].likes, is_liked });
     } catch (error) {
         console.error('Error liking item:', error.message);
         res.status(500).json({ error: 'Server error' });
     }
 };
 
-module.exports = { getAllItems, createItem, updateStatus, likeItem, deleteExpiredItems };
+// GET /api/lost-items/pending - Get pending items (admin only)
+const getPendingItems = async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT * FROM lost_items WHERE status = 'pending' ORDER BY created_at DESC`
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching pending items:', error.message);
+        res.status(500).json({ error: 'Server error fetching items' });
+    }
+};
+
+// PATCH /api/lost-items/:id/approve - Approve or Reject an item (admin only)
+const approveRejectItem = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ error: 'Status must be "approved" or "rejected"' });
+        }
+
+        const [result] = await pool.query('UPDATE lost_items SET status = ? WHERE id = ?', [status, id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
+        res.json({ message: `Item successfully marked as ${status}` });
+    } catch (error) {
+        console.error('Error updating status:', error.message);
+        res.status(500).json({ error: 'Server error updating status' });
+    }
+};
+
+module.exports = { getAllItems, getPendingItems, createItem, updateStatus, approveRejectItem, likeItem, deleteExpiredItems };

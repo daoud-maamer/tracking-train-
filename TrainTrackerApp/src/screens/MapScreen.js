@@ -70,47 +70,45 @@ const MapScreen = () => {
         return timeInMinutes;
     };
 
-    // Project 2D GPS coordinates onto our 1D rail line to find exactly how far the train is from Tunis
+    // Project GPS coordinates onto the ordered 1D rail line.
+    // We iterate over every sequential track segment A→B and find the closest
+    // point on that segment. This works even when the track doubles back (Radès loop).
     const getTrainRouteDistance = useCallback((trainLat, trainLon) => {
-        let nearestStationIdx = 0;
-        let minDist = calculateDistance(trainLat, trainLon, STATIONS[0].latitude, STATIONS[0].longitude);
-        
-        for (let i = 1; i < STATIONS.length; i++) {
-            const dist = calculateDistance(trainLat, trainLon, STATIONS[i].latitude, STATIONS[i].longitude);
-            if (dist < minDist) {
-                minDist = dist;
-                nearestStationIdx = i;
+        let bestDistKm = Infinity;  // best perpendicular distance to a segment
+        let bestRouteKm = 0;        // corresponding 1D route distance
+
+        for (let i = 0; i < STATIONS.length - 1; i++) {
+            const A = STATIONS[i];
+            const B = STATIONS[i + 1];
+
+            // Segment vector in lat/lon degrees
+            const abLat = B.latitude  - A.latitude;
+            const abLon = B.longitude - A.longitude;
+
+            // Vector from A to train
+            const atLat = trainLat - A.latitude;
+            const atLon = trainLon - A.longitude;
+
+            // Project: t = (AT · AB) / |AB|²  — clamped to [0,1]
+            const abLenSq = abLat * abLat + abLon * abLon;
+            let t = abLenSq === 0 ? 0 : (atLat * abLat + atLon * abLon) / abLenSq;
+            t = Math.max(0, Math.min(1, t));
+
+            // Closest point on segment
+            const closestLat = A.latitude  + t * abLat;
+            const closestLon = A.longitude + t * abLon;
+
+            // GPS distance from train to that closest point
+            const perpDistKm = calculateDistance(trainLat, trainLon, closestLat, closestLon);
+
+            if (perpDistKm < bestDistKm) {
+                bestDistKm = perpDistKm;
+                // 1D route distance = A's cumulative distance + fraction of A–B segment
+                bestRouteKm = A.distanceKm + t * (B.distanceKm - A.distanceKm);
             }
         }
 
-        // Check adjacent stations to find which rail segment the train is currently on
-        let prevIdx = nearestStationIdx - 1;
-        let nextIdx = nearestStationIdx + 1;
-        
-        let prevDist = prevIdx >= 0 ? calculateDistance(trainLat, trainLon, STATIONS[prevIdx].latitude, STATIONS[prevIdx].longitude) : Infinity;
-        let nextDist = nextIdx < STATIONS.length ? calculateDistance(trainLat, trainLon, STATIONS[nextIdx].latitude, STATIONS[nextIdx].longitude) : Infinity;
-
-        // Determine the second closest station
-        let otherIdx = prevDist < nextDist ? prevIdx : nextIdx;
-
-        // If at the ends of the line, just return the nearest station's distance
-        if (otherIdx < 0 || otherIdx >= STATIONS.length) {
-            return STATIONS[nearestStationIdx].distanceKm;
-        }
-
-        const idx1 = Math.min(nearestStationIdx, otherIdx);
-        const idx2 = Math.max(nearestStationIdx, otherIdx);
-        
-        const station1 = STATIONS[idx1];
-        const station2 = STATIONS[idx2];
-        
-        const dist1 = calculateDistance(trainLat, trainLon, station1.latitude, station1.longitude);
-        const dist2 = calculateDistance(trainLat, trainLon, station2.latitude, station2.longitude);
-        
-        // Approximate how far along the segment the train is
-        const fraction = dist1 / (dist1 + dist2);
-        
-        return station1.distanceKm + fraction * (station2.distanceKm - station1.distanceKm);
+        return bestRouteKm;
     }, []);
 
     // Calculate vertical position of a train on the schematic line based on Route Distance

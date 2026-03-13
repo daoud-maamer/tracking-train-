@@ -300,10 +300,6 @@ const MapScreen = () => {
             const activeTrain = filteredTrains[0];
             const activeTrainDistKm = getTrainRouteDistance(parseFloat(activeTrain.latitude), parseFloat(activeTrain.longitude));
             
-            // ETA to the departure station for the dashboard banner
-            const nextTrainDistanceDiff = Math.abs(activeTrainDistKm - selectedStation.distanceKm);
-            nextTrainETA = getETA(nextTrainDistanceDiff);
-            
             // Check if train is visually past the departure point
             if (requiredDirection === 'down') {
                 hasTrainPassedDeparture = activeTrainDistKm >= selectedStation.distanceKm;
@@ -311,9 +307,15 @@ const MapScreen = () => {
                 hasTrainPassedDeparture = activeTrainDistKm <= selectedStation.distanceKm;
             }
 
-            // If the train has boarded, update distance and ETA relative to the *train's live location*
-            if (hasTrainPassedDeparture) {
-                // Remaining rail distance is the distance from train absolute distance to arrival station absolute distance
+            // ETA to the departure station for the dashboard banner
+            // We only care about it if the train hasn't passed us yet!
+            if (!hasTrainPassedDeparture) {
+                const nextTrainDistanceDiff = Math.abs(activeTrainDistKm - selectedStation.distanceKm);
+                nextTrainETA = getETA(nextTrainDistanceDiff);
+            } else {
+                nextTrainETA = 0; // The train is here or already left
+                
+                // If the train has boarded, update remaining rail distance and ETA to arrival
                 dynamicDistanceKm = Math.abs(selectedArrival.distanceKm - activeTrainDistKm);
                 
                 if (dynamicDistanceKm > 0.1) {

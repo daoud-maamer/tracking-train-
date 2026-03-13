@@ -52,10 +52,21 @@ const register = async (req, res) => {
 
         // Send email with the verification code
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'your-email@gmail.com',
+            from: `"TrainTracker" <${process.env.EMAIL_USER || 'your-email@gmail.com'}>`, // Added Sender Name
             to: email,
             subject: 'Train Tracker - Verify your email',
-            text: `Your verification code is: ${verificationCode}`
+            html: `
+                <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; border-radius: 10px;">
+                    <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 600px; margin: auto; text-align: center;">
+                        <h2 style="color: #4CAF50; margin-bottom: 20px;">Welcome to TrainTracker! 🚆</h2>
+                        <p style="font-size: 16px; color: #333333; margin-bottom: 10px;">Please use the verification code below to complete your registration:</p>
+                        <div style="background-color: #e8f5e9; padding: 15px; border-radius: 5px; display: inline-block; margin: 20px 0;">
+                            <span style="font-size: 24px; font-weight: bold; color: #388e3c; letter-spacing: 2px;">${verificationCode}</span>
+                        </div>
+                        <p style="font-size: 14px; color: #777777; margin-top: 20px;">This code will expire in 15 minutes. If you didn't request this, please ignore this email.</p>
+                    </div>
+                </div>
+            `
         };
 
         // For local development, log the code so the developer can see it

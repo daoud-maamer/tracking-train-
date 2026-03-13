@@ -60,18 +60,12 @@ const MapScreen = () => {
     // New feature: Exact transit time between chosen stations
     const calculateTravelTime = (startStation, endStation) => {
         if (!startStation || !endStation || startStation.id === endStation.id) return 0;
-        
-        // Distance is the exact difference between their distance from Tunis
         const distanceKm = Math.abs(startStation.distanceKm - endStation.distanceKm);
-        const stationsCount = Math.abs(startStation.id - endStation.id);
-        const movingTimeMinutes = (distanceKm / 45) * 60;
-        const stopsMinutes = Math.max(0, stationsCount - 1); // intermediate stops
-        
-        return Math.round(movingTimeMinutes + stopsMinutes);
+        return getETA(distanceKm);
     };
 
     const getETA = (distanceKm) => {
-        const averageSpeed = 45; // 45 km/h average speed in suburban context
+        const averageSpeed = 40; // 40 km/h average speed in suburban context (inherently includes stops)
         const timeInMinutes = Math.round((distanceKm / averageSpeed) * 60);
         return Math.max(1, timeInMinutes); // Provide at least 1 min if very close
     };
@@ -323,32 +317,7 @@ const MapScreen = () => {
                 dynamicDistanceKm = Math.abs(selectedArrival.distanceKm - activeTrainDistKm);
                 
                 if (dynamicDistanceKm > 0.1) {
-                    // Figure out exactly how many stations are left to calculate stops
-                    // Train has covered `distanceTraveledSoFar` km.
-                    // We can estimate how many stops it has passed by looking at the remaining stations.
-                    let remainingStopsCount = 0;
-                    
-                    const startIdx = Math.min(selectedStation.id, selectedArrival.id);
-                    const endIdx = Math.max(selectedStation.id, selectedArrival.id);
-                    
-                    // The distance metric from Tunis to compare against
-                    const currentTrainDistanceMarker = activeTrainDistKm;
-
-                    for (let i = startIdx; i <= endIdx; i++) {
-                        const stMarker = STATIONS[i].distanceKm;
-                        if (requiredDirection === 'down') {
-                            if (stMarker > currentTrainDistanceMarker && stMarker < selectedArrival.distanceKm) {
-                                remainingStopsCount++;
-                            }
-                        } else {
-                            if (stMarker < currentTrainDistanceMarker && stMarker > selectedArrival.distanceKm) {
-                                remainingStopsCount++;
-                            }
-                        }
-                    }
-
-                    const movingTimeMinutes = (dynamicDistanceKm / 45) * 60;
-                    dynamicTravelTime = Math.max(1, Math.round(movingTimeMinutes + remainingStopsCount));
+                    dynamicTravelTime = getETA(dynamicDistanceKm);
                 } else {
                     dynamicDistanceKm = 0;
                     dynamicTravelTime = 0; // Arrived

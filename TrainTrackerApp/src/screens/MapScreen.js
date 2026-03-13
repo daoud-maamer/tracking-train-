@@ -70,11 +70,10 @@ const MapScreen = () => {
         return Math.round(movingTimeMinutes + stopsMinutes);
     };
 
-    const getETA = (trainLat, trainLon, stationLat, stationLon) => {
-        const distance = calculateDistance(trainLat, trainLon, stationLat, stationLon);
-        const averageSpeed = 45;
-        const timeInMinutes = Math.round((distance / averageSpeed) * 60);
-        return timeInMinutes;
+    const getETA = (distanceKm) => {
+        const averageSpeed = 45; // 45 km/h average speed in suburban context
+        const timeInMinutes = Math.round((distanceKm / averageSpeed) * 60);
+        return Math.max(1, timeInMinutes); // Provide at least 1 min if very close
     };
 
     // Project 2D GPS coordinates onto our 1D rail line to find exactly how far the train is from Tunis
@@ -201,7 +200,9 @@ const MapScreen = () => {
 
         validTrains.forEach(train => {
             // Check ETA to Departure Station
-            const etaToDeparture = getETA(parseFloat(train.latitude), parseFloat(train.longitude), selectedStation.latitude, selectedStation.longitude);
+            const trainDistKmForNotif = getTrainRouteDistance(parseFloat(train.latitude), parseFloat(train.longitude));
+            const depDistanceDiff = Math.abs(trainDistKmForNotif - selectedStation.distanceKm);
+            const etaToDeparture = getETA(depDistanceDiff);
             const depKey = `dep-${train.train_id}-${selectedStation.id}`;
 
             if (etaToDeparture <= 1 && !notifiedTrains.has(depKey)) {
@@ -226,7 +227,6 @@ const MapScreen = () => {
             // Check ETA to Arrival Station
             // Logic Change: Only check Arrival ETA if the train has already passed the Departure station
             let hasPassedDeparture = false;
-            const trainDistKmForNotif = getTrainRouteDistance(parseFloat(train.latitude), parseFloat(train.longitude));
 
             if (localRequiredDirection === 'down') {
                 hasPassedDeparture = trainDistKmForNotif >= selectedStation.distanceKm;
@@ -235,7 +235,8 @@ const MapScreen = () => {
             }
 
             if (hasPassedDeparture) {
-                const etaToArrival = getETA(parseFloat(train.latitude), parseFloat(train.longitude), selectedArrival.latitude, selectedArrival.longitude);
+                const arrDistanceDiff = Math.abs(trainDistKmForNotif - selectedArrival.distanceKm);
+                const etaToArrival = getETA(arrDistanceDiff);
                 const arrKey = `arr-${train.train_id}-${selectedArrival.id}`;
 
                 if (etaToArrival <= 1 && !notifiedTrains.has(arrKey)) {
@@ -303,9 +304,11 @@ const MapScreen = () => {
 
         if (filteredTrains.length > 0) {
             const activeTrain = filteredTrains[0];
-            nextTrainETA = getETA(parseFloat(activeTrain.latitude), parseFloat(activeTrain.longitude), selectedStation.latitude, selectedStation.longitude);
-            
             const activeTrainDistKm = getTrainRouteDistance(parseFloat(activeTrain.latitude), parseFloat(activeTrain.longitude));
+            
+            // ETA to the departure station for the dashboard banner
+            const nextTrainDistanceDiff = Math.abs(activeTrainDistKm - selectedStation.distanceKm);
+            nextTrainETA = getETA(nextTrainDistanceDiff);
             
             // Check if train is visually past the departure point
             if (requiredDirection === 'down') {

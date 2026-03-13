@@ -447,7 +447,7 @@ const MapScreen = () => {
                         );
                     })}
 
-                    // Moving Trains (Filtered)
+                    {/* Moving Trains (Filtered) */}
                     {filteredTrains.map((train, index) => {
                         const trainDistKm = getTrainRouteDistance(parseFloat(train.latitude), parseFloat(train.longitude));
                         const pos = getTrainPosition(trainDistKm);

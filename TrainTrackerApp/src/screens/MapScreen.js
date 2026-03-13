@@ -67,7 +67,7 @@ const MapScreen = () => {
     const getETA = (distanceKm) => {
         const averageSpeed = 40; // 40 km/h average speed in suburban context (inherently includes stops)
         const timeInMinutes = Math.round((distanceKm / averageSpeed) * 60);
-        return Math.max(1, timeInMinutes); // Provide at least 1 min if very close
+        return timeInMinutes;
     };
 
     // Project 2D GPS coordinates onto our 1D rail line to find exactly how far the train is from Tunis

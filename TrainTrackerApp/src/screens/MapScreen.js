@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, ActivityIndicator, ScrollView, Animated, Alert 
 import { Picker } from '@react-native-picker/picker';
 import * as Notifications from 'expo-notifications';
 import { fetchTrains } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -66,6 +67,8 @@ const MapScreen = () => {
 
     // Store previous positions to calculate direction
     const prevTrainsRef = useRef({});
+
+    const { t } = useLanguage();
 
     const calculateDistance = haversineKm;
 
@@ -346,14 +349,14 @@ const MapScreen = () => {
                 <Text style={styles.headerTitle}>Ligne Banlieue Sud</Text>
                 <View style={styles.pickersContainerMain}>
                     <View style={[styles.pickerContainer, { flex: 1, marginRight: 5 }]}>
-                        <Text style={styles.pickerLabel}>Gare de départ</Text>
+                        <Text style={styles.pickerLabel}>{t('departure')}</Text>
                         <View style={styles.pickerWrapper}>
                             <Picker
                                 selectedValue={selectedStation}
                                 onValueChange={(itemValue) => setSelectedStation(itemValue)}
                                 style={styles.picker}
                             >
-                                <Picker.Item label="Départ..." value={null} />
+                                <Picker.Item label={`${t('departure')}...`} value={null} />
                                 {STATIONS.map((station, index) => (
                                     <Picker.Item key={index} label={station.name} value={station} />
                                 ))}
@@ -362,14 +365,14 @@ const MapScreen = () => {
                     </View>
 
                     <View style={[styles.pickerContainer, { flex: 1, marginLeft: 5 }]}>
-                        <Text style={styles.pickerLabel}>Gare d'arrivée</Text>
+                        <Text style={styles.pickerLabel}>{t('arrival')}</Text>
                         <View style={styles.pickerWrapper}>
                             <Picker
                                 selectedValue={selectedArrival}
                                 onValueChange={(itemValue) => setSelectedArrival(itemValue)}
                                 style={styles.picker}
                             >
-                                <Picker.Item label="Arrivée..." value={null} />
+                                <Picker.Item label={`${t('arrival')}...`} value={null} />
                                 {STATIONS.map((station, index) => (
                                     <Picker.Item key={index} label={station.name} value={station} />
                                 ))}
@@ -383,19 +386,21 @@ const MapScreen = () => {
                         {!hasTrainPassedDeparture ? (
                             <>
                                 <Text style={styles.etaMainText}>
-                                    {nextTrainETA !== null && nextTrainETA !== Infinity ? `Le train arrive dans ${nextTrainETA} min` : "Aucun train en mouvement"}
+                                    {nextTrainETA !== null && nextTrainETA !== Infinity
+                                        ? `${t('trainArrives')} ${nextTrainETA} ${t('min')}`
+                                        : t('noTrain')}
                                 </Text>
                                 <Text style={styles.etaSubText}>
-                                    Trajet ({dynamicDistanceKm.toFixed(2)}km) : {dynamicTravelTime} min
+                                    {t('distance')} ({dynamicDistanceKm.toFixed(2)}{t('km')}) : {dynamicTravelTime} {t('min')}
                                 </Text>
                             </>
                         ) : (
                             <>
                                 <Text style={styles.etaMainText}>
-                                    Reste : {dynamicDistanceKm.toFixed(2)}km ({dynamicTravelTime} min)
+                                    {t('arrived')} ✔️ {t('trainAt')} {selectedArrival.name}
                                 </Text>
                                 <Text style={styles.etaSubText}>
-                                    En route vers {selectedArrival.name}
+                                    {t('distance')} ({dynamicDistanceKm.toFixed(2)}{t('km')}) : {dynamicTravelTime} {t('min')}
                                 </Text>
                             </>
                         )}

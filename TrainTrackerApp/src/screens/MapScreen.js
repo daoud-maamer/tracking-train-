@@ -137,7 +137,7 @@ const MapScreen = () => {
             
             const enhancedData = singleTrainData.map(train => {
                 const prev = prevTrainsRef.current[train.train_id];
-                let direction = null; // null represents no change or unknown yet
+                let direction = prev ? prev.direction : null; // Default to previous known direction, or null if totally new
 
                 const trainLat = parseFloat(train.latitude);
                 const trainLon = parseFloat(train.longitude);
@@ -149,9 +149,8 @@ const MapScreen = () => {
                         direction = 'down'; // Moving away from Tunis
                     } else if (currentDistKm < prev.distanceKm - 0.1) {
                         direction = 'up'; // Moving towards Tunis
-                    } else {
-                        direction = prev.direction; // Keep old direction if stationary or jittering
                     }
+                    // If movement is < 0.1km, `direction` naturally keeps its value (prev.direction)
                 }
 
                 prevTrainsRef.current[train.train_id] = {
@@ -161,6 +160,7 @@ const MapScreen = () => {
 
                 return { ...train, direction };
             });
+            // Update trains, merging old directions if the new fetch somehow missed it (though our ref covers it)
             setTrains(enhancedData);
         } catch (error) {
             console.error('Failed to load trains', error);

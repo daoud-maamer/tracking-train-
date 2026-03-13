@@ -13,26 +13,47 @@ Notifications.setNotificationHandler({
     }),
 });
 
-const STATIONS = [
-    { name: 'Gare de Tunis', latitude: 36.7953, longitude: 10.1806, id: 0, distanceKm: 0 },
-    { name: 'Djebel Jelloud', latitude: 36.7820, longitude: 10.1950, id: 1, distanceKm: 2.1 },
-    { name: 'Mégrine Riadh', latitude: 36.7720, longitude: 10.2200, id: 2, distanceKm: 3.9 },
-    { name: 'Mégrine', latitude: 36.7686, longitude: 10.2336, id: 3, distanceKm: 6.0 },
-    { name: 'Sidi Rezig', latitude: 36.7650, longitude: 10.2500, id: 4, distanceKm: 8.1 },
-    { name: 'Radès Lycée', latitude: 36.7660, longitude: 10.2650, id: 5, distanceKm: 9.9 }, 
-    { name: 'Radès', latitude: 36.7667, longitude: 10.2833, id: 6, distanceKm: 11.4 },
-    { name: 'Radès Méliane', latitude: 36.7620, longitude: 10.2700, id: 7, distanceKm: 13.4 },
-    { name: 'Ezzahra', latitude: 36.7439, longitude: 10.3083, id: 8, distanceKm: 14.7 },
-    { name: 'Ezzahra Lycée', latitude: 36.7400, longitude: 10.3200, id: 9, distanceKm: 15.8 },
-    { name: 'Boukornine', latitude: 36.7320, longitude: 10.3300, id: 10, distanceKm: 17.2 },
-    { name: 'Hammam Lif', latitude: 36.7287, longitude: 10.3416, id: 11, distanceKm: 18.5 },
-    { name: 'Arrêt du Stade', latitude: 36.7265, longitude: 10.3450, id: 12, distanceKm: 19.7 }, 
-    { name: 'Tahar Sfar', latitude: 36.7250, longitude: 10.3500, id: 13, distanceKm: 21.1 },
-    { name: 'Hammam Chott', latitude: 36.7217, longitude: 10.3583, id: 14, distanceKm: 22.1 },
-    { name: 'Bir El Bey', latitude: 36.6980, longitude: 10.3725, id: 15, distanceKm: 23.05 },
-    { name: 'Borj Cédria', latitude: 36.6881, longitude: 10.3779, id: 16, distanceKm: 24.0 }, 
-    { name: 'Erriadh Station', latitude: 36.6882, longitude: 10.3779, id: 17, distanceKm: 25.35 },
+// Raw haversine distance (km) between two GPS points — used at module level
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const STATIONS_RAW = [
+    { name: 'Gare de Tunis',    latitude: 36.7953, longitude: 10.1806, id: 0 },
+    { name: 'Djebel Jelloud',   latitude: 36.7820, longitude: 10.1950, id: 1 },
+    { name: 'Mégrine Riadh',   latitude: 36.7720, longitude: 10.2200, id: 2 },
+    { name: 'Mégrine',          latitude: 36.7686, longitude: 10.2336, id: 3 },
+    { name: 'Sidi Rezig',       latitude: 36.7650, longitude: 10.2500, id: 4 },
+    { name: 'Radès Lycée',      latitude: 36.7660, longitude: 10.2650, id: 5 },
+    { name: 'Radès',            latitude: 36.7667, longitude: 10.2833, id: 6 },
+    { name: 'Radès Méliane',   latitude: 36.7620, longitude: 10.2700, id: 7 },
+    { name: 'Ezzahra',          latitude: 36.7439, longitude: 10.3083, id: 8 },
+    { name: 'Ezzahra Lycée',   latitude: 36.7400, longitude: 10.3200, id: 9 },
+    { name: 'Boukornine',       latitude: 36.7320, longitude: 10.3300, id: 10 },
+    { name: 'Hammam Lif',       latitude: 36.7287, longitude: 10.3416, id: 11 },
+    { name: 'Arrêt du Stade',  latitude: 36.7265, longitude: 10.3450, id: 12 },
+    { name: 'Tahar Sfar',       latitude: 36.7250, longitude: 10.3500, id: 13 },
+    { name: 'Hammam Chott',     latitude: 36.7217, longitude: 10.3583, id: 14 },
+    { name: 'Bir El Bey',       latitude: 36.6980, longitude: 10.3725, id: 15 },
+    { name: 'Borj Cédria',     latitude: 36.6881, longitude: 10.3779, id: 16 },
+    { name: 'Erriadh Station',  latitude: 36.6882, longitude: 10.3779, id: 17 },
 ];
+
+// Auto-compute cumulative distances from real GPS coordinates
+const STATIONS = STATIONS_RAW.map((s, i) => ({
+    ...s,
+    distanceKm: i === 0
+        ? 0
+        : STATIONS_RAW.slice(0, i).reduce((acc, cur, j) =>
+            acc + haversineKm(STATIONS_RAW[j].latitude, STATIONS_RAW[j].longitude,
+                              STATIONS_RAW[j + 1].latitude, STATIONS_RAW[j + 1].longitude)
+          , 0),
+}));
 
 const STATION_HEIGHT = 100;
 
@@ -46,16 +67,8 @@ const MapScreen = () => {
     // Store previous positions to calculate direction
     const prevTrainsRef = useRef({});
 
-    const calculateDistance = (lat1, lon1, lat2, lon2) => {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    };
+    const calculateDistance = haversineKm;
+
 
     // New feature: Exact transit time between chosen stations
     const calculateTravelTime = (startStation, endStation) => {

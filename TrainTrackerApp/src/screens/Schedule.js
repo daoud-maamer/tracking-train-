@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView
 } from 'react-native';
+import { useLanguage } from '../context/LanguageContext';
 
 // ─── Real SNCFT Ramadan 2026 timetable ───────────────────────────────────────
 // Source: ligne-a-ramadan-2026 official image
@@ -108,7 +109,8 @@ const toMinutes = (t) => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const ScheduleScreen = ({ navigation }) => {
-    const [dir, setDir] = useState('south'); // 'south' = Tunis→Borj, 'north' = Borj→Tunis
+    const [dir, setDir] = useState('south');
+    const { t } = useLanguage();
 
     const data = dir === 'south' ? TUNIS_TO_BORJ : BORJ_TO_TUNIS;
     const depKey = dir === 'south' ? 'tunis' : 'borj';
@@ -124,8 +126,8 @@ const ScheduleScreen = ({ navigation }) => {
         <SafeAreaView style={s.container}>
             {/* Header */}
             <View style={s.header}>
-                <Text style={s.headerTitle}>🚆 Horaires Banlieue Sud</Text>
-                <Text style={s.headerSub}>SNCFT · Ramadan 2026</Text>
+                <Text style={s.headerTitle}>🚆 {t('scheduleTitle')}</Text>
+                <Text style={s.headerSub}>{t('scheduleSubtitle')}</Text>
             </View>
 
             {/* Toggle */}
@@ -134,17 +136,13 @@ const ScheduleScreen = ({ navigation }) => {
                     style={[s.btn, dir === 'south' && s.btnActive]}
                     onPress={() => setDir('south')}
                 >
-                    <Text style={[s.btnTxt, dir === 'south' && s.btnTxtActive]}>
-                        Tunis → Borj Cédria
-                    </Text>
+                    <Text style={[s.btnTxt, dir === 'south' && s.btnTxtActive]}>{t('towardsBorj')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[s.btn, dir === 'north' && s.btnActive]}
                     onPress={() => setDir('north')}
                 >
-                    <Text style={[s.btnTxt, dir === 'north' && s.btnTxtActive]}>
-                        Borj Cédria → Tunis
-                    </Text>
+                    <Text style={[s.btnTxt, dir === 'north' && s.btnTxtActive]}>{t('towardsTunis')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -207,7 +205,7 @@ const ScheduleScreen = ({ navigation }) => {
 
             {/* Back */}
             <TouchableOpacity style={s.back} onPress={() => navigation.goBack()}>
-                <Text style={s.backTxt}>← Retour</Text>
+                <Text style={s.backTxt}>{t('back')}</Text>
             </TouchableOpacity>
         </SafeAreaView>
     );

@@ -17,6 +17,7 @@ import VerifyCodeScreen from './src/screens/Auth/VerifyCodeScreen';
 import AdminScreen from './src/screens/AdminScreen';
 
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
+import { LanguageProvider } from './src/context/LanguageContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -41,11 +42,11 @@ const Navigation = () => {
                     headerTitleStyle: { fontWeight: 'bold' }
                 }}
             >
-                <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'SNCFT Tracker - Banlieue Sud' }} />
+                <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="Map" component={MapScreen} options={{ title: 'Trains en Temps Réel' }} />
-                <Stack.Screen name="Reclamations" component={ReclamationsScreen} options={{ title: 'Reclamations' }} />
-                <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ title: 'Schedule' }} />
-                <Stack.Screen name="learn more about us" component={LearnMoreScreen} options={{ title: 'About Us' }} />
+                <Stack.Screen name="Reclamations" component={ReclamationsScreen} options={{ title: 'Réclamations' }} />
+                <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ title: 'Horaires' }} />
+                <Stack.Screen name="learn more about us" component={LearnMoreScreen} options={{ title: 'À propos' }} />
 
                 {/* Auth Flow */}
                 <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Se Connecter' }} />
@@ -70,9 +71,11 @@ const Navigation = () => {
 
 const App = () => {
     return (
-        <AuthProvider>
-            <Navigation />
-        </AuthProvider>
+        <LanguageProvider>
+            <AuthProvider>
+                <Navigation />
+            </AuthProvider>
+        </LanguageProvider>
     );
 };
 

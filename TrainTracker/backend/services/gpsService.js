@@ -1,30 +1,44 @@
 const pool = require('../config/db');
 
+// Full station list matching the frontend (18 stations)
 const STATIONS = [
-    { name: 'Tunis Ville', lat: 36.7953, lon: 10.1806 },
-    { name: 'Mégrine', lat: 36.7686, lon: 10.2336 },
-    { name: 'Radès', lat: 36.7667, lon: 10.2833 },
-    { name: 'Ezzahra', lat: 36.7439, lon: 10.3083 },
-    { name: 'Hammam Lif', lat: 36.7287, lon: 10.3416 },
-    { name: 'Hammam Chott', lat: 36.7217, lon: 10.3583 },
-    { name: 'Borj Cédria', lat: 36.6881, lon: 10.3779 },
+    { name: 'Gare de Tunis',   lat: 36.7953, lon: 10.1806 },
+    { name: 'Djebel Jelloud', lat: 36.7820, lon: 10.1950 },
+    { name: 'Mégrine Riadh',  lat: 36.7720, lon: 10.2200 },
+    { name: 'Mégrine',        lat: 36.7686, lon: 10.2336 },
+    { name: 'Sidi Rezig',     lat: 36.7650, lon: 10.2500 },
+    { name: 'Radès Lycée',   lat: 36.7660, lon: 10.2650 },
+    { name: 'Radès',          lat: 36.7667, lon: 10.2833 },
+    { name: 'Radès Méliane', lat: 36.7620, lon: 10.2700 },
+    { name: 'Ezzahra',        lat: 36.7439, lon: 10.3083 },
+    { name: 'Ezzahra Lycée', lat: 36.7400, lon: 10.3200 },
+    { name: 'Boukornine',     lat: 36.7320, lon: 10.3300 },
+    { name: 'Hammam Lif',     lat: 36.7287, lon: 10.3416 },
+    { name: 'Arrêt du Stade',lat: 36.7265, lon: 10.3450 },
+    { name: 'Tahar Sfar',     lat: 36.7250, lon: 10.3500 },
+    { name: 'Hammam Chott',   lat: 36.7217, lon: 10.3583 },
+    { name: 'Bir El Bey',     lat: 36.6980, lon: 10.3725 },
+    { name: 'Borj Cédria',   lat: 36.6881, lon: 10.3779 },
+    { name: 'Erriadh Station',lat: 36.6882, lon: 10.3779 },
 ];
 
 // In-memory storage for when DB is down
 let latestPositions = [];
 
 // Simple in-memory state for simulator
+// Progress step 0.003 per 15s = (0.003/15s) * (total time to cross) 
+// With 18 stations, 1 unit = full line. 1/0.003 * 15 = ~5000s = ~83min total which is realistic for suburban
 let simulatorState = [
-    { train_id: 'TRAIN-A', progress: 0.1, direction: 1, speed: 50 },
-    { train_id: 'TRAIN-B', progress: 0.8, direction: -1, speed: 45 }
+    { train_id: 'TRAIN-A', progress: 0.1, direction: 1, speed: 30 },
+    { train_id: 'TRAIN-B', progress: 0.8, direction: -1, speed: 28 }
 ];
 
 const updateSimulatorPositions = async () => {
     try {
         const newPositions = [];
         for (let train of simulatorState) {
-            // Move train slightly (approx 0.02 progress every 15s)
-            train.progress += (0.02 * train.direction);
+            // Move train: 0.003 progress per 15s ≈ 28 km/h average on 22km line
+            train.progress += (0.003 * train.direction);
 
             // Reverse if reached ends
             if (train.progress >= 1) {

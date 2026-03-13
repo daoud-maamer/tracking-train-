@@ -77,15 +77,53 @@ const MapScreen = () => {
         return timeInMinutes;
     };
 
-    // Calculate vertical position of a train on the schematic line
-    const getTrainPosition = (trainLat, trainLong) => {
-        // Tunis Ville is Northernmost (Highest Lat: ~36.79), Erriadh is Southernmost (Lowest Lat: ~36.68)
-        // With Tunis Ville at index 0 (top of screen), position Progress should be 0 at Tunis, 1 at Erriadh
-        const startLat = STATIONS[0].latitude; // Tunis Ville (North)
-        const endLat = STATIONS[STATIONS.length - 1].latitude; // Erriadh (South)
+    // Project 2D GPS coordinates onto our 1D rail line to find exactly how far the train is from Tunis
+    const getTrainRouteDistance = useCallback((trainLat, trainLon) => {
+        let nearestStationIdx = 0;
+        let minDist = calculateDistance(trainLat, trainLon, STATIONS[0].latitude, STATIONS[0].longitude);
+        
+        for (let i = 1; i < STATIONS.length; i++) {
+            const dist = calculateDistance(trainLat, trainLon, STATIONS[i].latitude, STATIONS[i].longitude);
+            if (dist < minDist) {
+                minDist = dist;
+                nearestStationIdx = i;
+            }
+        }
 
-        // As trainLat decreases (moves South), progress increases from 0 to 1
-        let progress = (startLat - trainLat) / (startLat - endLat);
+        // Check adjacent stations to find which rail segment the train is currently on
+        let prevIdx = nearestStationIdx - 1;
+        let nextIdx = nearestStationIdx + 1;
+        
+        let prevDist = prevIdx >= 0 ? calculateDistance(trainLat, trainLon, STATIONS[prevIdx].latitude, STATIONS[prevIdx].longitude) : Infinity;
+        let nextDist = nextIdx < STATIONS.length ? calculateDistance(trainLat, trainLon, STATIONS[nextIdx].latitude, STATIONS[nextIdx].longitude) : Infinity;
+
+        // Determine the second closest station
+        let otherIdx = prevDist < nextDist ? prevIdx : nextIdx;
+
+        // If at the ends of the line, just return the nearest station's distance
+        if (otherIdx < 0 || otherIdx >= STATIONS.length) {
+            return STATIONS[nearestStationIdx].distanceKm;
+        }
+
+        const idx1 = Math.min(nearestStationIdx, otherIdx);
+        const idx2 = Math.max(nearestStationIdx, otherIdx);
+        
+        const station1 = STATIONS[idx1];
+        const station2 = STATIONS[idx2];
+        
+        const dist1 = calculateDistance(trainLat, trainLon, station1.latitude, station1.longitude);
+        const dist2 = calculateDistance(trainLat, trainLon, station2.latitude, station2.longitude);
+        
+        // Approximate how far along the segment the train is
+        const fraction = dist1 / (dist1 + dist2);
+        
+        return station1.distanceKm + fraction * (station2.distanceKm - station1.distanceKm);
+    }, []);
+
+    // Calculate vertical position of a train on the schematic line based on Route Distance
+    const getTrainPosition = (trainRouteDistanceKm) => {
+        const totalDistance = STATIONS[STATIONS.length - 1].distanceKm;
+        let progress = trainRouteDistanceKm / totalDistance;
         progress = Math.max(0, Math.min(1, progress));
 
         const totalHeight = (STATIONS.length - 1) * STATION_HEIGHT;
@@ -101,18 +139,23 @@ const MapScreen = () => {
                 const prev = prevTrainsRef.current[train.train_id];
                 let direction = null; // null represents no change or unknown yet
 
+                const trainLat = parseFloat(train.latitude);
+                const trainLon = parseFloat(train.longitude);
+                const currentDistKm = getTrainRouteDistance(trainLat, trainLon);
+
                 if (prev) {
-                    if (parseFloat(train.latitude) < prev.latitude) {
-                        direction = 'down'; // Moving towards Erriadh (South)
-                    } else if (parseFloat(train.latitude) > prev.latitude) {
-                        direction = 'up'; // Moving towards Tunis Ville (North)
+                    // Filter out GPS noise (must move at least 100m to register direction change)
+                    if (currentDistKm > prev.distanceKm + 0.1) {
+                        direction = 'down'; // Moving away from Tunis
+                    } else if (currentDistKm < prev.distanceKm - 0.1) {
+                        direction = 'up'; // Moving towards Tunis
                     } else {
-                        direction = prev.direction; // Keep old direction if stationary
+                        direction = prev.direction; // Keep old direction if stationary or jittering
                     }
                 }
 
                 prevTrainsRef.current[train.train_id] = {
-                    latitude: parseFloat(train.latitude),
+                    distanceKm: currentDistKm,
                     direction
                 };
 
@@ -182,14 +225,13 @@ const MapScreen = () => {
 
             // Check ETA to Arrival Station
             // Logic Change: Only check Arrival ETA if the train has already passed the Departure station
-            // or is currently between Departure and Arrival.
             let hasPassedDeparture = false;
+            const trainDistKmForNotif = getTrainRouteDistance(parseFloat(train.latitude), parseFloat(train.longitude));
+
             if (localRequiredDirection === 'down') {
-                // Moving south. Passed if train latitude is less than departure latitude (further south)
-                hasPassedDeparture = parseFloat(train.latitude) < selectedStation.latitude;
+                hasPassedDeparture = trainDistKmForNotif >= selectedStation.distanceKm;
             } else if (localRequiredDirection === 'up') {
-                // Moving north. Passed if train latitude is greater than departure latitude (further north)
-                hasPassedDeparture = parseFloat(train.latitude) > selectedStation.latitude;
+                hasPassedDeparture = trainDistKmForNotif <= selectedStation.distanceKm;
             }
 
             if (hasPassedDeparture) {
@@ -263,28 +305,19 @@ const MapScreen = () => {
             const activeTrain = filteredTrains[0];
             nextTrainETA = getETA(parseFloat(activeTrain.latitude), parseFloat(activeTrain.longitude), selectedStation.latitude, selectedStation.longitude);
             
+            const activeTrainDistKm = getTrainRouteDistance(parseFloat(activeTrain.latitude), parseFloat(activeTrain.longitude));
+            
             // Check if train is visually past the departure point
             if (requiredDirection === 'down') {
-                hasTrainPassedDeparture = parseFloat(activeTrain.latitude) < selectedStation.latitude;
+                hasTrainPassedDeparture = activeTrainDistKm >= selectedStation.distanceKm;
             } else if (requiredDirection === 'up') {
-                hasTrainPassedDeparture = parseFloat(activeTrain.latitude) > selectedStation.latitude;
+                hasTrainPassedDeparture = activeTrainDistKm <= selectedStation.distanceKm;
             }
 
             // If the train has boarded, update distance and ETA relative to the *train's live location*
             if (hasTrainPassedDeparture) {
-                // Find total starting distance
-                const totalJourneyDistance = Math.abs(selectedStation.distanceKm - selectedArrival.distanceKm);
-
-                // Find how far the train has physically traveled away from the departure station
-                const distanceTraveledSoFar = calculateDistance(
-                    selectedStation.latitude,
-                    selectedStation.longitude,
-                    parseFloat(activeTrain.latitude),
-                    parseFloat(activeTrain.longitude)
-                );
-
-                // Remaining rail distance is total minus what we've driven so far
-                dynamicDistanceKm = Math.max(0, totalJourneyDistance - distanceTraveledSoFar);
+                // Remaining rail distance is the distance from train absolute distance to arrival station absolute distance
+                dynamicDistanceKm = Math.abs(selectedArrival.distanceKm - activeTrainDistKm);
                 
                 if (dynamicDistanceKm > 0.1) {
                     // Figure out exactly how many stations are left to calculate stops
@@ -296,9 +329,7 @@ const MapScreen = () => {
                     const endIdx = Math.max(selectedStation.id, selectedArrival.id);
                     
                     // The distance metric from Tunis to compare against
-                    const currentTrainDistanceMarker = requiredDirection === 'down' 
-                        ? selectedStation.distanceKm + distanceTraveledSoFar 
-                        : selectedStation.distanceKm - distanceTraveledSoFar;
+                    const currentTrainDistanceMarker = activeTrainDistKm;
 
                     for (let i = startIdx; i <= endIdx; i++) {
                         const stMarker = STATIONS[i].distanceKm;
@@ -416,9 +447,10 @@ const MapScreen = () => {
                         );
                     })}
 
-                    {/* Moving Trains (Filtered) */}
+                    // Moving Trains (Filtered)
                     {filteredTrains.map((train, index) => {
-                        const pos = getTrainPosition(parseFloat(train.latitude), parseFloat(train.longitude));
+                        const trainDistKm = getTrainRouteDistance(parseFloat(train.latitude), parseFloat(train.longitude));
+                        const pos = getTrainPosition(trainDistKm);
                         let arrow = '';
                         if (train.direction === 'down') arrow = '⬇️';
                         else if (train.direction === 'up') arrow = '⬆️';

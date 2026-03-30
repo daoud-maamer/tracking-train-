@@ -28,3 +28,19 @@ exports.getTrains = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+exports.toggleTrainStatus = (req, res) => {
+    const { train_id } = req.params;
+    const { isStopped } = req.body;
+    
+    if (typeof isStopped !== 'boolean') {
+        return res.status(400).json({ error: 'isStopped must be a boolean' });
+    }
+
+    const updated = gpsService.setTrainStatus(train_id, isStopped);
+    if (updated) {
+        res.json({ message: 'Train status updated successfully', train_id, isStopped });
+    } else {
+        res.status(404).json({ error: 'Train not found in simulator' });
+    }
+};

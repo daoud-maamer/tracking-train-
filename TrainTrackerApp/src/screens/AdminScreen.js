@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { fetchPendingItems, approveRejectItem } from '../services/api';
-
-const API_BASE = 'http://192.168.1.10:3000';
+import { API_BASE } from '../config';
 
 const AdminScreen = () => {
     const [pendingItems, setPendingItems] = useState([]);

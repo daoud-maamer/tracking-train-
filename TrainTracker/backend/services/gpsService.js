@@ -29,8 +29,8 @@ let latestPositions = [];
 // Progress step 0.003 per 15s = (0.003/15s) * (total time to cross) 
 // With 18 stations, 1 unit = full line. 1/0.003 * 15 = ~5000s = ~83min total which is realistic for suburban
 let simulatorState = [
-    { train_id: 'TRAIN-A', progress: 0.1, direction: 1, speed: 30 },
-    { train_id: 'TRAIN-B', progress: 0.8, direction: -1, speed: 28 }
+    { train_id: 'TRAIN-A', progress: 0.1, direction: 1, speed: 30, isStopped: false },
+    { train_id: 'TRAIN-B', progress: 0.8, direction: -1, speed: 28, isStopped: false }
 ];
 
 const updateSimulatorPositions = async () => {
@@ -38,15 +38,17 @@ const updateSimulatorPositions = async () => {
         const newPositions = [];
         for (let train of simulatorState) {
             // Move train: 0.003 progress per 15s ≈ 28 km/h average on 22km line
-            train.progress += (0.003 * train.direction);
+            if (!train.isStopped) {
+                train.progress += (0.003 * train.direction);
 
-            // Reverse if reached ends
-            if (train.progress >= 1) {
-                train.progress = 1;
-                train.direction = -1;
-            } else if (train.progress <= 0) {
-                train.progress = 0;
-                train.direction = 1;
+                // Reverse if reached ends
+                if (train.progress >= 1) {
+                    train.progress = 1;
+                    train.direction = -1;
+                } else if (train.progress <= 0) {
+                    train.progress = 0;
+                    train.direction = 1;
+                }
             }
 
             // Calculate lat/lon based on linear interpolation between start and end of line
@@ -67,7 +69,8 @@ const updateSimulatorPositions = async () => {
                 train_id: train.train_id,
                 latitude: lat,
                 longitude: lon,
-                speed: train.speed + (Math.random() * 5),
+                speed: train.isStopped ? 0 : train.speed + (Math.random() * 5),
+                isStopped: train.isStopped,
                 timestamp: new Date().toISOString()
             };
             newPositions.push(posData);
@@ -100,7 +103,17 @@ const startService = () => {
     updateSimulatorPositions();
 };
 
+const setTrainStatus = (train_id, isStopped) => {
+    const train = simulatorState.find(t => t.train_id === train_id);
+    if (train) {
+        train.isStopped = isStopped;
+        return true;
+    }
+    return false;
+};
+
 module.exports = {
     startService,
-    getLatestPositions: () => latestPositions
+    getLatestPositions: () => latestPositions,
+    setTrainStatus
 };

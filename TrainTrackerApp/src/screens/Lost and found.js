@@ -17,8 +17,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { fetchLostItems, createLostItem, updateLostItemStatus, likeLostItem } from '../services/api';
-
-const API_BASE = 'http://192.168.1.10:3000';
+import { API_BASE } from '../config';
 
 const LostAndFoundScreen = ({ navigation }) => {
     const [publications, setPublications] = useState([]);
@@ -146,12 +145,12 @@ const LostAndFoundScreen = ({ navigation }) => {
                 });
             }
 
-            const created = await createLostItem(formData);
-            setPublications(prev => [created, ...prev]);
+            await createLostItem(formData);
+            // Do NOT add to local state — the post must be approved by admin first
             setModalVisible(false);
             setNewPost({ author: '', item: '', description: '', location: '', item_date: '', item_time: '', contact: '', type: 'lost' });
             setSelectedImage(null);
-            Alert.alert('✅ Succès', 'Votre annonce a été publiée et sera supprimée automatiquement après 30 jours.');
+            Alert.alert('✅ Annonce envoyée', 'Votre annonce est en attente de validation par un administrateur. Elle apparaîtra dans la liste une fois approuvée.');
         } catch (error) {
             Alert.alert('Erreur', 'Impossible de publier l\'annonce. Réessayez.');
         } finally {

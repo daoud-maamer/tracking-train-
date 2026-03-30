@@ -15,6 +15,7 @@ import LoginScreen from './src/screens/Auth/LoginScreen';
 import RegisterScreen from './src/screens/Auth/RegisterScreen';
 import VerifyCodeScreen from './src/screens/Auth/VerifyCodeScreen';
 import AdminScreen from './src/screens/AdminScreen';
+import AdminDepotDashboard from './src/screens/AdminDepotDashboard';
 
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
@@ -61,9 +62,10 @@ const Navigation = () => {
                 />
 
                 {/* Admin Route */}
-                {user && user.role === 'admin' && (
-                    <Stack.Screen name="AdminDashboard" component={AdminScreen} options={{ title: 'Administration' }} />
-                )}
+                <Stack.Screen name="AdminDashboard" component={AdminScreen} options={{ title: 'Administration' }} />
+                
+                {/* Admin de Depot Route */}
+                <Stack.Screen name="AdminDepotDashboard" component={AdminDepotDashboard} options={{ title: 'Admin de Depot' }} />
             </Stack.Navigator>
         </NavigationContainer>
     );

@@ -75,6 +75,11 @@ const HomeScreen = ({ navigation }) => {
                                     <Text style={[styles.menuItemText, { color: '#16A34A', fontWeight: 'bold' }]}>⚙️ {t('adminDashboard')}</Text>
                                 </TouchableOpacity>
                             )}
+                            {user && user.id === 2 && (
+                                <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); navigation.navigate('AdminDepotDashboard'); }}>
+                                    <Text style={[styles.menuItemText, { color: '#D97706', fontWeight: 'bold' }]}>🚉 Admin Dépôt</Text>
+                                </TouchableOpacity>
+                            )}
                             {user && (
                                 <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); logoutUser(); }}>
                                     <Text style={[styles.menuItemText, { color: '#DC2626' }]}>🚪 {t('logout')}</Text>

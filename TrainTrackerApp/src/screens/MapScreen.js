@@ -140,9 +140,10 @@ const MapScreen = () => {
     const loadTrains = useCallback(async () => {
         try {
             const data = await fetchTrains();
-            const singleTrainData = data.slice(0, 1); // Requirement: test with exactly 1 train
+            // Filter out trains that are currently stopped by an Admin
+            const activeTrains = data.filter(t => !t.isStopped);
             
-            const enhancedData = singleTrainData.map(train => {
+            const enhancedData = activeTrains.map(train => {
                 const prev = prevTrainsRef.current[train.train_id];
                 let direction = prev ? prev.direction : null; // Default to previous known direction, or null if totally new
 
@@ -294,16 +295,30 @@ const MapScreen = () => {
     // Filter trains to only show those heading in the correct direction,
     // or those whose direction is not yet known (null).
     const filteredTrains = trains.filter(train => {
-        if (!selectedStation || !selectedArrival) return true; // Show all if no route selected
-        if (train.direction === null) return true; // Keep stationary/newly-spawned trains
-        return train.direction === requiredDirection;
+        if (!selectedStation || !selectedArrival) return true; 
+        if (train.direction === null) return true; 
+        if (train.direction === requiredDirection) return true;
+        
+        // Exceptional case: Waiting at the terminus.
+        // If at Tunis (0) wanting to go Down, the incoming train is coming Up.
+        if (selectedStation.id === 0 && requiredDirection === 'down' && train.direction === 'up') {
+            return true;
+        }
+        // If at Erriadh (17) wanting to go Up, the incoming train is coming Down.
+        if (selectedStation.id === 17 && requiredDirection === 'up' && train.direction === 'down') {
+            return true;
+        }
+
+        return false;
     });
 
     // Calculate ETA specifically for the first filtered train
     let nextTrainETA = null;
     let hasTrainPassedDeparture = false;
+    let hasPassedArrival = false;
     let dynamicDistanceKm = 0;
     let dynamicTravelTime = 0;
+    let distanceToDeparture = 0;
 
     if (selectedStation && selectedArrival) {
         // Base values (before boarding)
@@ -314,29 +329,40 @@ const MapScreen = () => {
             const activeTrain = filteredTrains[0];
             const activeTrainDistKm = getTrainRouteDistance(parseFloat(activeTrain.latitude), parseFloat(activeTrain.longitude));
             
-            // Check if train is visually past the departure point
-            if (requiredDirection === 'down') {
-                hasTrainPassedDeparture = activeTrainDistKm >= selectedStation.distanceKm;
-            } else if (requiredDirection === 'up') {
-                hasTrainPassedDeparture = activeTrainDistKm <= selectedStation.distanceKm;
+            let trainActualDirection = activeTrain.direction || requiredDirection;
+
+            if (trainActualDirection === requiredDirection) {
+                // Train is moving in the same direction we want
+                if (requiredDirection === 'down') {
+                    hasTrainPassedDeparture = activeTrainDistKm >= (selectedStation.distanceKm - 0.1);
+                    hasPassedArrival = activeTrainDistKm >= (selectedArrival.distanceKm - 0.1);
+                } else if (requiredDirection === 'up') {
+                    hasTrainPassedDeparture = activeTrainDistKm <= (selectedStation.distanceKm + 0.1);
+                    hasPassedArrival = activeTrainDistKm <= (selectedArrival.distanceKm + 0.1);
+                }
+            } else {
+                // Train is moving OPPOSITE to where we want to go.
+                // This happens when we wait at Tunis/Erriadh for the train to finish its previous trip.
+                hasTrainPassedDeparture = false; // It hasn't arrived at the departure yet
+                hasPassedArrival = false;
             }
 
             // ETA to the departure station for the dashboard banner
-            // We only care about it if the train hasn't passed us yet!
             if (!hasTrainPassedDeparture) {
-                const nextTrainDistanceDiff = Math.abs(activeTrainDistKm - selectedStation.distanceKm);
-                nextTrainETA = getETA(nextTrainDistanceDiff);
+                distanceToDeparture = Math.abs(activeTrainDistKm - selectedStation.distanceKm);
+                nextTrainETA = getETA(distanceToDeparture);
             } else {
                 nextTrainETA = 0; // The train is here or already left
+                distanceToDeparture = 0;
                 
-                // If the train has boarded, update remaining rail distance and ETA to arrival
-                dynamicDistanceKm = Math.abs(selectedArrival.distanceKm - activeTrainDistKm);
-                
-                if (dynamicDistanceKm > 0.1) {
-                    dynamicTravelTime = getETA(dynamicDistanceKm);
-                } else {
+                if (hasPassedArrival) {
+                    // Train reached or passed destination
                     dynamicDistanceKm = 0;
-                    dynamicTravelTime = 0; // Arrived
+                    dynamicTravelTime = 0;
+                } else {
+                    // Train is between Departure and Arrival
+                    dynamicDistanceKm = Math.abs(selectedArrival.distanceKm - activeTrainDistKm);
+                    dynamicTravelTime = getETA(dynamicDistanceKm);
                 }
             }
         }
@@ -387,11 +413,20 @@ const MapScreen = () => {
                             <>
                                 <Text style={styles.etaMainText}>
                                     {nextTrainETA !== null && nextTrainETA !== Infinity
-                                        ? `${t('trainArrives')} ${nextTrainETA} ${t('min')}`
+                                        ? `Le train arrive (Départ) dans ${nextTrainETA} min`
                                         : t('noTrain')}
                                 </Text>
                                 <Text style={styles.etaSubText}>
-                                    {t('distance')} ({dynamicDistanceKm.toFixed(2)}{t('km')}) : {dynamicTravelTime} {t('min')}
+                                    Distance au départ : {distanceToDeparture.toFixed(2)} km
+                                </Text>
+                            </>
+                        ) : !hasPassedArrival ? (
+                            <>
+                                <Text style={styles.etaMainText}>
+                                    En route 🚆 Arrivée dans {dynamicTravelTime} min
+                                </Text>
+                                <Text style={styles.etaSubText}>
+                                    Distance restante vers destination : {dynamicDistanceKm.toFixed(2)} km
                                 </Text>
                             </>
                         ) : (
@@ -400,7 +435,7 @@ const MapScreen = () => {
                                     {t('arrived')} ✔️ {t('trainAt')} {selectedArrival.name}
                                 </Text>
                                 <Text style={styles.etaSubText}>
-                                    {t('distance')} ({dynamicDistanceKm.toFixed(2)}{t('km')}) : {dynamicTravelTime} {t('min')}
+                                    Distance restante : 0.00 km
                                 </Text>
                             </>
                         )}

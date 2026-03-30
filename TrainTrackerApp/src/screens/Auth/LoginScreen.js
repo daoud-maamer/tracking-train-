@@ -18,8 +18,14 @@ const LoginScreen = ({ navigation }) => {
         try {
             const data = await login(email, password);
             await loginUser(data.token, data.user);
-            // After successful login, redirect to Lost and found
-            navigation.replace('Lost and found');
+            // Redirect admins to admin dashboard, others to Lost and found
+            if (data.user.role === 'admin' || data.user.id === 1) {
+                navigation.replace('AdminDashboard');
+            } else if (data.user.id === 2) {
+                navigation.replace('AdminDepotDashboard');
+            } else {
+                navigation.replace('Lost and found');
+            }
         } catch (error) {
             Alert.alert('Login Failed', error.response?.data?.error || 'An error occurred');
         } finally {

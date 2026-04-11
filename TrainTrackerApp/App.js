@@ -9,6 +9,7 @@ import HiScreen from './src/screens/Lost and found';
 import ReclamationsScreen from './src/screens/Reclamations';
 import ScheduleScreen from './src/screens/Schedule';
 import LearnMoreScreen from './src/screens/learn more about us';
+import ReservationScreen from './src/screens/ReservationScreen';
 
 // Auth Screens
 import LoginScreen from './src/screens/Auth/LoginScreen';
@@ -45,6 +46,7 @@ const Navigation = () => {
             >
                 <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="Map" component={MapScreen} options={{ title: 'Trains en Temps Réel' }} />
+                <Stack.Screen name="Reservation" component={ReservationScreen} options={{ title: 'Réservation' }} />
                 <Stack.Screen name="Reclamations" component={ReclamationsScreen} options={{ title: 'Réclamations' }} />
                 <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ title: 'Horaires' }} />
                 <Stack.Screen name="learn more about us" component={LearnMoreScreen} options={{ title: 'À propos' }} />

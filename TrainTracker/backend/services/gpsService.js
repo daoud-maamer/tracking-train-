@@ -1,25 +1,26 @@
 const pool = require('../config/db');
 
-// Full station list matching the frontend (18 stations)
+// Full station list matching the frontend (19 stations)
 const STATIONS = [
-    { name: 'Gare de Tunis',   lat: 36.7953, lon: 10.1806 },
-    { name: 'Djebel Jelloud', lat: 36.7820, lon: 10.1950 },
-    { name: 'Mégrine Riadh',  lat: 36.7720, lon: 10.2200 },
-    { name: 'Mégrine',        lat: 36.7686, lon: 10.2336 },
-    { name: 'Sidi Rezig',     lat: 36.7650, lon: 10.2500 },
-    { name: 'Radès Lycée',   lat: 36.7660, lon: 10.2650 },
-    { name: 'Radès',          lat: 36.7667, lon: 10.2833 },
-    { name: 'Radès Méliane', lat: 36.7620, lon: 10.2700 },
-    { name: 'Ezzahra',        lat: 36.7439, lon: 10.3083 },
-    { name: 'Ezzahra Lycée', lat: 36.7400, lon: 10.3200 },
-    { name: 'Boukornine',     lat: 36.7320, lon: 10.3300 },
-    { name: 'Hammam Lif',     lat: 36.7287, lon: 10.3416 },
-    { name: 'Arrêt du Stade',lat: 36.7265, lon: 10.3450 },
-    { name: 'Tahar Sfar',     lat: 36.7250, lon: 10.3500 },
-    { name: 'Hammam Chott',   lat: 36.7217, lon: 10.3583 },
-    { name: 'Bir El Bey',     lat: 36.6980, lon: 10.3725 },
-    { name: 'Borj Cédria',   lat: 36.6881, lon: 10.3779 },
-    { name: 'Erriadh Station',lat: 36.6882, lon: 10.3779 },
+    { name: 'Gare de Tunis',   lat: 36.795311, lon: 10.180563 },
+    { name: 'G.D.F. Hached',   lat: 36.7873048, lon: 10.1788879 },
+    { name: 'Djebel Jelloud', lat: 36.7724962, lon: 10.2040837 },
+    { name: 'Mégrine Riadh',  lat: 36.7702698, lon: 10.2201399 },
+    { name: 'Mégrine',        lat: 36.7683269, lon: 10.2294121 },
+    { name: 'Sidi Rezig',     lat: 36.7672182, lon: 10.2409349 },
+    { name: 'Radès Lycée',   lat: 36.7667611, lon: 10.2563696 },
+    { name: 'Radès',          lat: 36.7683081, lon: 10.2675813 },
+    { name: 'Radès Méliane', lat: 36.7638474, lon: 10.2802198 },
+    { name: 'Ezzahra',        lat: 36.7468667, lon: 10.3022642 },
+    { name: 'Ezzahra Lycée', lat: 36.7410292, lon: 10.3132506 },
+    { name: 'Boukornine',     lat: 36.7350881, lon: 10.3211148 },
+    { name: 'Hammam Lif',     lat: 36.7301698, lon: 10.3309961 },
+    { name: 'Arrêt du Stade',lat: 36.7253285, lon: 10.3423043 },
+    { name: 'Tahar Sfar',     lat: 36.7183456, lon: 10.3565843 },
+    { name: 'Hammam Chott',   lat: 36.7141659, lon: 10.3666802 },
+    { name: 'Bir El Bey',     lat: 36.7102676, lon: 10.3742641 },
+    { name: 'Borj Cédria',   lat: 36.7042123, lon: 10.3942412 },
+    { name: 'Erriadh Station',lat: 36.7005737, lon: 10.411182 },
 ];
 
 // In-memory storage for when DB is down

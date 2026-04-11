@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, Text, ActivityIndicator, ScrollView, Animated, Alert } from 'react-native';
+import { View, StyleSheet, Text, ActivityIndicator, ScrollView, Animated, Alert, TouchableOpacity } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as Notifications from 'expo-notifications';
 import { fetchTrains } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -14,47 +15,7 @@ Notifications.setNotificationHandler({
     }),
 });
 
-// Raw haversine distance (km) between two GPS points — used at module level
-const haversineKm = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-const STATIONS_RAW = [
-    { name: 'Gare de Tunis',    latitude: 36.7953, longitude: 10.1806, id: 0 },
-    { name: 'Djebel Jelloud',   latitude: 36.7820, longitude: 10.1950, id: 1 },
-    { name: 'Mégrine Riadh',   latitude: 36.7720, longitude: 10.2200, id: 2 },
-    { name: 'Mégrine',          latitude: 36.7686, longitude: 10.2336, id: 3 },
-    { name: 'Sidi Rezig',       latitude: 36.7650, longitude: 10.2500, id: 4 },
-    { name: 'Radès Lycée',      latitude: 36.7660, longitude: 10.2650, id: 5 },
-    { name: 'Radès',            latitude: 36.7667, longitude: 10.2833, id: 6 },
-    { name: 'Radès Méliane',   latitude: 36.7620, longitude: 10.2700, id: 7 },
-    { name: 'Ezzahra',          latitude: 36.7439, longitude: 10.3083, id: 8 },
-    { name: 'Ezzahra Lycée',   latitude: 36.7400, longitude: 10.3200, id: 9 },
-    { name: 'Boukornine',       latitude: 36.7320, longitude: 10.3300, id: 10 },
-    { name: 'Hammam Lif',       latitude: 36.7287, longitude: 10.3416, id: 11 },
-    { name: 'Arrêt du Stade',  latitude: 36.7265, longitude: 10.3450, id: 12 },
-    { name: 'Tahar Sfar',       latitude: 36.7250, longitude: 10.3500, id: 13 },
-    { name: 'Hammam Chott',     latitude: 36.7217, longitude: 10.3583, id: 14 },
-    { name: 'Bir El Bey',       latitude: 36.6980, longitude: 10.3725, id: 15 },
-    { name: 'Borj Cédria',     latitude: 36.6881, longitude: 10.3779, id: 16 },
-    { name: 'Erriadh Station',  latitude: 36.6882, longitude: 10.3779, id: 17 },
-];
-
-// Auto-compute cumulative distances from real GPS coordinates
-const STATIONS = STATIONS_RAW.map((s, i) => ({
-    ...s,
-    distanceKm: i === 0
-        ? 0
-        : STATIONS_RAW.slice(0, i).reduce((acc, cur, j) =>
-            acc + haversineKm(STATIONS_RAW[j].latitude, STATIONS_RAW[j].longitude,
-                              STATIONS_RAW[j + 1].latitude, STATIONS_RAW[j + 1].longitude)
-          , 0),
-}));
+import { STATIONS, STATIONS_RAW, haversineKm } from '../utils/stationsData';
 
 const STATION_HEIGHT = 100;
 
@@ -64,6 +25,16 @@ const MapScreen = () => {
     const [selectedStation, setSelectedStation] = useState(null); // Departure
     const [selectedArrival, setSelectedArrival] = useState(null); // Arrival
     const [notifiedTrains, setNotifiedTrains] = useState(new Set());
+    const [viewMode, setViewMode] = useState('schematic'); // 'schematic' | 'map'
+    const mapRef = useRef(null);
+
+    // Compute region to encompass the whole line
+    const mapRegion = {
+        latitude: 36.748,
+        longitude: 10.296,
+        latitudeDelta: 0.15,
+        longitudeDelta: 0.15,
+    };
 
     // Store previous positions to calculate direction
     const prevTrainsRef = useRef({});
@@ -274,6 +245,21 @@ const MapScreen = () => {
         }
     }, [trains, selectedArrival, selectedStation, notifiedTrains]);
 
+    useEffect(() => {
+        if (viewMode === 'map' && mapRef.current && selectedStation && selectedArrival && selectedStation.id !== selectedArrival.id) {
+            // Find all coordinates that are part of the trip to fit exactly
+            const tripCoords = STATIONS.slice(
+                Math.min(selectedStation.id, selectedArrival.id), 
+                Math.max(selectedStation.id, selectedArrival.id) + 1
+            ).map((s) => ({ latitude: s.latitude, longitude: s.longitude }));
+
+            mapRef.current.fitToCoordinates(tripCoords, {
+                edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
+                animated: true,
+            });
+        }
+    }, [selectedStation, selectedArrival, viewMode]);
+
     if (loading && trains.length === 0) {
         return (
             <View style={styles.loadingContainer}>
@@ -286,7 +272,7 @@ const MapScreen = () => {
     // Determine the required direction to travel
     let requiredDirection = null;
     if (selectedStation && selectedArrival && selectedStation.id !== selectedArrival.id) {
-        // Tunis Ville is id: 0, Erriadh is id: 15
+        // Tunis Ville is id: 0, Erriadh is id: 18
         // If Departure < Arrival, we are moving South (down)
         // If Departure > Arrival, we are moving North (up)
         requiredDirection = selectedStation.id < selectedArrival.id ? 'down' : 'up';
@@ -304,8 +290,8 @@ const MapScreen = () => {
         if (selectedStation.id === 0 && requiredDirection === 'down' && train.direction === 'up') {
             return true;
         }
-        // If at Erriadh (17) wanting to go Up, the incoming train is coming Down.
-        if (selectedStation.id === 17 && requiredDirection === 'up' && train.direction === 'down') {
+        // If at Erriadh (18) wanting to go Up, the incoming train is coming Down.
+        if (selectedStation.id === 18 && requiredDirection === 'up' && train.direction === 'down') {
             return true;
         }
 
@@ -413,20 +399,20 @@ const MapScreen = () => {
                             <>
                                 <Text style={styles.etaMainText}>
                                     {nextTrainETA !== null && nextTrainETA !== Infinity
-                                        ? `Le train arrive (Départ) dans ${nextTrainETA} min`
+                                        ? `Le train arrive à ${selectedStation.name} dans ${nextTrainETA} min`
                                         : t('noTrain')}
                                 </Text>
                                 <Text style={styles.etaSubText}>
-                                    Distance au départ : {distanceToDeparture.toFixed(2)} km
+                                    Distance vers la gare de départ : {distanceToDeparture.toFixed(2)} km
                                 </Text>
                             </>
                         ) : !hasPassedArrival ? (
                             <>
                                 <Text style={styles.etaMainText}>
-                                    En route 🚆 Arrivée dans {dynamicTravelTime} min
+                                    🚆 Le train arrive à {selectedArrival.name} dans {dynamicTravelTime} min
                                 </Text>
                                 <Text style={styles.etaSubText}>
-                                    Distance restante vers destination : {dynamicDistanceKm.toFixed(2)} km
+                                    Distance restante vers votre destination : {dynamicDistanceKm.toFixed(2)} km
                                 </Text>
                             </>
                         ) : (
@@ -435,69 +421,162 @@ const MapScreen = () => {
                                     {t('arrived')} ✔️ {t('trainAt')} {selectedArrival.name}
                                 </Text>
                                 <Text style={styles.etaSubText}>
-                                    Distance restante : 0.00 km
+                                    Voyage terminé
                                 </Text>
                             </>
                         )}
                     </View>
                 )}
+
+                {/* View Mode Toggle */}
+                <View style={styles.toggleContainer}>
+                    <TouchableOpacity 
+                        style={[styles.toggleBtn, viewMode === 'schematic' && styles.toggleBtnActive]}
+                        onPress={() => setViewMode('schematic')}
+                    >
+                        <Text style={[styles.toggleBtnText, viewMode === 'schematic' && styles.toggleBtnTextActive]}>Schéma de Ligne</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+                        onPress={() => setViewMode('map')}
+                    >
+                        <Text style={[styles.toggleBtnText, viewMode === 'map' && styles.toggleBtnTextActive]}>Carte Réelle</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            {/* Schematic Line View */}
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                <View style={styles.lineWrapper}>
-                    {/* The Rail Line */}
-                    <View style={styles.railLine} />
+            {/* Content Switcher */}
+            {viewMode === 'schematic' ? (
+                <ScrollView contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.lineWrapper}>
+                        {/* The Rail Line */}
+                        <View style={styles.railLine} />
 
-                    {/* Stations */}
-                    {STATIONS.map((station, index) => {
-                        const isSelected = selectedStation && selectedStation.id === station.id;
-                        const isArrival = selectedArrival && selectedArrival.id === station.id;
+                        {/* Stations */}
+                        {STATIONS.map((station, index) => {
+                            const isSelected = selectedStation && selectedStation.id === station.id;
+                            const isArrival = selectedArrival && selectedArrival.id === station.id;
 
-                        return (
-                            <View key={index} style={[styles.stationRow, { top: index * STATION_HEIGHT }]}>
-                                <View style={[styles.stationDot, 
-                                    isSelected && styles.selectedStationDot,
-                                    isArrival && styles.arrivalStationDot
-                                ]}>
-                                    {(isSelected || isArrival) && <View style={styles.selectedStationInner} />}
+                            return (
+                                <View key={index} style={[styles.stationRow, { top: index * STATION_HEIGHT }]}>
+                                    <View style={[styles.stationDot, 
+                                        isSelected && styles.selectedStationDot,
+                                        isArrival && styles.arrivalStationDot
+                                    ]}>
+                                        {(isSelected || isArrival) && <View style={styles.selectedStationInner} />}
+                                    </View>
+                                    <Text style={[styles.stationName, 
+                                        isSelected && styles.selectedStationName,
+                                        isArrival && styles.arrivalStationName
+                                    ]}>
+                                        {station.name}
+                                    </Text>
                                 </View>
-                                <Text style={[styles.stationName, 
-                                    isSelected && styles.selectedStationName,
-                                    isArrival && styles.arrivalStationName
-                                ]}>
-                                    {station.name}
-                                </Text>
-                            </View>
-                        );
-                    })}
+                            );
+                        })}
 
-                    {/* Moving Trains (Filtered) */}
+                        {/* Moving Trains (Filtered) */}
+                        {filteredTrains.map((train, index) => {
+                            const trainDistKm = getTrainRouteDistance(parseFloat(train.latitude), parseFloat(train.longitude));
+                            const pos = getTrainPosition(trainDistKm);
+                            let arrow = '';
+                            if (train.direction === 'down') arrow = '⬇️';
+                            else if (train.direction === 'up') arrow = '⬆️';
+
+                            return (
+                                <View
+                                    key={`train-${index}`}
+                                    style={[styles.trainMarker, { transform: [{ translateY: pos }] }]}
+                                >
+                                    <Text style={styles.trainEmoji}>🚆</Text>
+                                    <View style={styles.trainInfo}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={styles.trainId}>#{train.train_id}</Text>
+                                            {arrow !== '' && <Text style={{ fontSize: 10, marginLeft: 4 }}>{arrow}</Text>}
+                                        </View>
+                                        <Text style={styles.trainSpeed}>{train.speed} km/h</Text>
+                                    </View>
+                                </View>
+                            );
+                        })}
+                    </View>
+                </ScrollView>
+            ) : (
+                <MapView 
+                    ref={mapRef}
+                    style={styles.map}
+                    initialRegion={mapRegion}
+                    minZoomLevel={11} // Prevents seeing the whole globe
+                    onMapReady={() => {
+                        if (mapRef.current) {
+                            // Strictly trap the camera panning within the Tunis <-> Borj Cedria corridor
+                            mapRef.current.setMapBoundaries(
+                                { latitude: 36.820, longitude: 10.430 }, // NorthEast corner
+                                { latitude: 36.680, longitude: 10.160 }  // SouthWest corner
+                            );
+                        }
+                    }}
+                >
+                    {/* Background line for the entire track: Now BLUE */}
+                    <Polyline 
+                        coordinates={STATIONS.map((s) => ({ latitude: s.latitude, longitude: s.longitude }))}
+                        strokeColor="#3B82F6" // Standard blue for the track
+                        strokeWidth={8}       // THICKER (gras)
+                    />
+
+                    {/* Green line for the selected trip */}
+                    {selectedStation && selectedArrival && (
+                        <Polyline 
+                            coordinates={STATIONS.slice(
+                                Math.min(selectedStation.id, selectedArrival.id), 
+                                Math.max(selectedStation.id, selectedArrival.id) + 1
+                            ).map((s) => ({ latitude: s.latitude, longitude: s.longitude }))}
+                            strokeColor="#10B981" // Bright green for the trip
+                            strokeWidth={12}      // THICKER (gras)
+                            zIndex={10}
+                        />
+                    )}
+
+                    {/* Only render markers for Departure and Arrival */}
+                    {selectedStation && (
+                        <Marker 
+                            coordinate={{ latitude: selectedStation.latitude, longitude: selectedStation.longitude }}
+                            title={selectedStation.name}
+                            pinColor="#F59E0B"
+                            zIndex={20}
+                        />
+                    )}
+                    {selectedArrival && selectedArrival.id !== selectedStation?.id && (
+                        <Marker 
+                            coordinate={{ latitude: selectedArrival.latitude, longitude: selectedArrival.longitude }}
+                            title={selectedArrival.name}
+                            pinColor="#10B981"
+                            zIndex={20}
+                        />
+                    )}
+
                     {filteredTrains.map((train, index) => {
-                        const trainDistKm = getTrainRouteDistance(parseFloat(train.latitude), parseFloat(train.longitude));
-                        const pos = getTrainPosition(trainDistKm);
                         let arrow = '';
                         if (train.direction === 'down') arrow = '⬇️';
                         else if (train.direction === 'up') arrow = '⬆️';
 
                         return (
-                            <View
-                                key={`train-${index}`}
-                                style={[styles.trainMarker, { transform: [{ translateY: pos }] }]}
+                            <Marker
+                                key={`map-train-${index}`}
+                                coordinate={{ latitude: parseFloat(train.latitude), longitude: parseFloat(train.longitude) }}
+                                title={`Train #${train.train_id} ${arrow}`}
+                                description={`${train.speed} km/h`}
+                                zIndex={100}
+                                anchor={{ x: 0.5, y: 0.5 }}
                             >
-                                <Text style={styles.trainEmoji}>🚆</Text>
-                                <View style={styles.trainInfo}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <Text style={styles.trainId}>#{train.train_id}</Text>
-                                        {arrow !== '' && <Text style={{ fontSize: 10, marginLeft: 4 }}>{arrow}</Text>}
-                                    </View>
-                                    <Text style={styles.trainSpeed}>{train.speed} km/h</Text>
+                                <View style={styles.mapTrainMarker}>
+                                    <Text style={{ fontSize: 20 }}>🚆</Text>
                                 </View>
-                            </View>
+                            </Marker>
                         );
                     })}
-                </View>
-            </ScrollView>
+                </MapView>
+            )}
         </View>
     );
 };
@@ -675,7 +754,49 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#1E3A8A',
         fontWeight: '500',
-    }
+    },
+    toggleContainer: {
+        flexDirection: 'row',
+        marginTop: 15,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 8,
+        padding: 4,
+    },
+    toggleBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        borderRadius: 6,
+    },
+    toggleBtnActive: {
+        backgroundColor: '#1E3A8A',
+    },
+    toggleBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    toggleBtnTextActive: {
+        color: '#FFFFFF',
+    },
+    map: {
+        flex: 1,
+        width: '100%',
+    },
+    mapTrainMarker: {
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: 20,
+        padding: 4,
+        borderWidth: 2,
+        borderColor: '#1E3A8A',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 5,
+    },
 });
 
 export default MapScreen;

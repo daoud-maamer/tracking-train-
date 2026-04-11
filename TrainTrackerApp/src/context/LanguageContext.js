@@ -58,6 +58,15 @@ export const translations = {
         confirmPassword: 'Confirmer le mot de passe',
         alreadyAccount: 'Déjà un compte ?',
         noAccount: 'Pas encore de compte ?',
+        // Reservation
+        reservation: 'Réservation',
+        searchTrain: 'Chercher',
+        timeEntry: 'Heure (Ex: 08:30)',
+        ticketCost: 'Prix estimé',
+        nextTrainLabel: 'Prochain train',
+        bookTicket: 'Réserver ce billet',
+        dt: 'TND',
+        bookingSuccess: 'Réservation effectuée avec succès !',
     },
 
     en: {
@@ -111,6 +120,15 @@ export const translations = {
         confirmPassword: 'Confirm password',
         alreadyAccount: 'Already have an account?',
         noAccount: 'No account yet?',
+        // Reservation
+        reservation: 'Reservation',
+        searchTrain: 'Search',
+        timeEntry: 'Time (e.g., 08:30)',
+        ticketCost: 'Estimated Price',
+        nextTrainLabel: 'Next Train',
+        bookTicket: 'Book this ticket',
+        dt: 'TND',
+        bookingSuccess: 'Booking successful!',
     },
 
     ar: {
@@ -164,6 +182,15 @@ export const translations = {
         confirmPassword: 'تأكيد كلمة المرور',
         alreadyAccount: 'لديك حساب بالفعل؟',
         noAccount: 'لا تملك حساباً؟',
+        // Reservation
+        reservation: 'حجز التذاكر',
+        searchTrain: 'بحث',
+        timeEntry: 'الوقت (مثال: 08:30)',
+        ticketCost: 'السعر التقديري',
+        nextTrainLabel: 'القطار القادم',
+        bookTicket: 'حجز التذكرة',
+        dt: 'دينار',
+        bookingSuccess: 'تم الحجز بنجاح!',
     },
 };
 
